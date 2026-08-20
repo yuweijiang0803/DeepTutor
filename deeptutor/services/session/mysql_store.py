@@ -154,7 +154,7 @@ CREATE TABLE IF NOT EXISTS dt_turn_events (
     source        VARCHAR(64) NOT NULL DEFAULT '',
     stage         VARCHAR(32) NOT NULL DEFAULT '',
     content       MEDIUMTEXT,
-    metadata_json TEXT        NOT NULL DEFAULT '',
+    metadata_json TEXT        NOT NULL,
     timestamp     DOUBLE      NOT NULL,
     created_at    DOUBLE      NOT NULL,
     PRIMARY KEY (id),
