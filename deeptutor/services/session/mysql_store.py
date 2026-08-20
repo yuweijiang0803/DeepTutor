@@ -101,7 +101,13 @@ async def get_mysql_pool():
             minsize=1,
             maxsize=8,
             charset="utf8mb4",
-            autocommit=False,
+            # autocommit=True so every statement is immediately durable and
+            # reads always see the latest committed rows. With autocommit=False
+            # a read method that returns without commit/rollback leaves a
+            # stale REPEATABLE-READ snapshot on the pooled connection, so a
+            # session created by one method becomes invisible to the next
+            # method that reuses that connection ("Session not found").
+            autocommit=True,
             cursorclass=aiomysql.DictCursor,
         )
         await _ensure_schema(_pool)
