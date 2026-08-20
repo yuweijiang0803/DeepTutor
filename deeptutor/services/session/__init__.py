@@ -1,4 +1,10 @@
 """
+Modified from DeepTutor (Apache-2.0, https://github.com/HKUDS/DeepTutor).
+Original copyright: 2025 Data Intelligence Lab, The University of Hong Kong.
+This file was modified by yuweijiang0803 for the K12 teaching-engine fork:
+get_session_store() now selects MySQLSessionStore when MYSQL_HOST is set.
+See git history and NOTICE for details.
+
 Session Management Module
 =========================
 
@@ -34,10 +40,18 @@ def get_session_store() -> SessionStoreProtocol:
     """
     Return the active session store backend.
 
-    When integrations.pocketbase_url is configured, returns a
-    PocketBaseSessionStore. Otherwise falls back to the local
-    SQLiteSessionStore (default, zero-config behaviour).
+    When MYSQL_HOST is configured, returns a MySQLSessionStore (conversation
+    records live in the shared MySQL database). When
+    integrations.pocketbase_url is configured, returns a PocketBaseSessionStore.
+    Otherwise falls back to the local SQLiteSessionStore (default, zero-config
+    behaviour).
     """
+    from deeptutor.services.session.mysql_store import mysql_configured
+
+    if mysql_configured():
+        from .mysql_store import get_mysql_session_store
+
+        return get_mysql_session_store()
     from deeptutor.services.pocketbase_client import is_pocketbase_enabled
 
     if is_pocketbase_enabled():
