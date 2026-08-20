@@ -1,0 +1,39 @@
+DeepTutor (K12 Fork)
+Copyright 2026 yuweijiang0803
+
+This project is a fork of DeepTutor, originally developed by the
+Data Intelligence Lab, The University of Hong Kong:
+
+    https://github.com/HKUDS/DeepTutor
+
+Original copyright:
+    Copyright 2025 Data Intelligence Lab, The University of Hong Kong
+
+Licensed under the Apache License, Version 2.0 (the "License").
+You may obtain a copy of the License at:
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+----------------------------------------------------------------------
+Modifications
+----------------------------------------------------------------------
+
+The following changes have been made on top of the upstream DeepTutor
+codebase (see git history for details):
+
+- Added K12 teaching-engine capabilities (Socratic tutoring, error
+  diagnosis, mastery-path tuning) and related prompts.
+- Added an Electron desktop shell for packaging the web frontend as a
+  PC client (see desktop/).
+- Added project documentation (RUN.md, PROJECT_ANALYSIS.md).
+- Production account/data integration (see README; storage bridge to
+  the XiaoZhi management platform).
+
+Modified files carry a prominent notice in their header stating that
+they were changed. See HEADER_TEMPLATE.md for the standard notice.
