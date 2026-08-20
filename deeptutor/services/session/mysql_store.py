@@ -939,6 +939,19 @@ class MySQLSessionStore:
 # Public factory (matches sqlite_store.get_sqlite_session_store naming)
 # ---------------------------------------------------------------------------
 
+_mysql_store_instance: "MySQLSessionStore | None" = None
+
 
 def get_mysql_session_store() -> MySQLSessionStore:
-    return MySQLSessionStore()
+    """Return a process-wide singleton MySQLSessionStore.
+
+    Must be a singleton: TurnRuntimeManager keys its instances by
+    ``id(store)`` (MySQL has no ``db_path``), so returning a fresh instance on
+    every call yields a different manager each time — the turn's execution and
+    the frontend's subscription would live on different managers, breaking
+    live event delivery and mis-failing running turns as orphans.
+    """
+    global _mysql_store_instance
+    if _mysql_store_instance is None:
+        _mysql_store_instance = MySQLSessionStore()
+    return _mysql_store_instance
