@@ -58,9 +58,28 @@ def _env(name: str, default: str = "") -> str:
     return os.environ.get(name, default)
 
 
+def _mysql_settings() -> dict[str, Any]:
+    """MySQL session-store config: mysql.json settings, env vars win."""
+    try:
+        from deeptutor.services.config.runtime_settings import load_mysql_settings
+
+        cfg = dict(load_mysql_settings())
+    except Exception:
+        cfg = {"enabled": False, "host": "", "port": 3306, "user": "", "password": "", "database": ""}
+    if _env("MYSQL_HOST"):
+        cfg["enabled"] = True
+        cfg["host"] = _env("MYSQL_HOST")
+        cfg["port"] = int(_env("MYSQL_PORT", "3306"))
+        cfg["user"] = _env("MYSQL_USER")
+        cfg["password"] = _env("MYSQL_PASSWORD")
+        cfg["database"] = _env("MYSQL_DB")
+    return cfg
+
+
 def mysql_configured() -> bool:
-    """True when MYSQL_HOST is set, selecting the MySQL session store."""
-    return bool(_env("MYSQL_HOST"))
+    """True when the MySQL session store should be used."""
+    cfg = _mysql_settings()
+    return bool(cfg.get("enabled")) and bool(cfg.get("host"))
 
 
 _pool: Any = None
@@ -72,12 +91,13 @@ async def get_mysql_pool():
     if _pool is None:
         import aiomysql
 
+        cfg = _mysql_settings()
         _pool = await aiomysql.create_pool(
-            host=_env("MYSQL_HOST", "127.0.0.1"),
-            port=int(_env("MYSQL_PORT", "3306")),
-            user=_env("MYSQL_USER", "root"),
-            password=_env("MYSQL_PASSWORD", ""),
-            db=_env("MYSQL_DB", "mixly"),
+            host=cfg.get("host") or "127.0.0.1",
+            port=int(cfg.get("port") or 3306),
+            user=cfg.get("user") or "root",
+            password=cfg.get("password") or "",
+            db=cfg.get("database") or "mixly",
             minsize=1,
             maxsize=8,
             charset="utf8mb4",

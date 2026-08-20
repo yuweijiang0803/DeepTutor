@@ -1,3 +1,9 @@
+# Modified from DeepTutor (Apache-2.0, https://github.com/HKUDS/DeepTutor).
+# Original copyright: 2025 Data Intelligence Lab, The University of Hong Kong.
+# This file was modified by yuweijiang0803 for the K12 teaching-engine fork:
+# added a MySQL session-store settings block (mysql.json). See git history
+# and NOTICE for details.
+
 from __future__ import annotations
 
 from copy import deepcopy
@@ -64,6 +70,19 @@ DEFAULT_INTEGRATIONS_SETTINGS: dict[str, Any] = {
     "pocketbase_external_url": "",
     "pocketbase_admin_email": "",
     "pocketbase_admin_password": "",
+}
+
+# MySQL session-store settings (fork addition). When ``enabled`` is true the
+# session store writes conversations into the shared MySQL database (the same
+# one XiaoZhi / manager-web uses). Persisted as ``mysql.json``.
+DEFAULT_MYSQL_SETTINGS: dict[str, Any] = {
+    "version": 1,
+    "enabled": False,
+    "host": "",
+    "port": 3306,
+    "user": "",
+    "password": "",
+    "database": "",
 }
 
 # Document parsing settings. The parse layer (deeptutor/services/parsing)
@@ -440,6 +459,21 @@ class RuntimeSettingsService:
     def save_integrations(self, settings: dict[str, Any]) -> dict[str, Any]:
         payload = self._normalize_integrations({**DEFAULT_INTEGRATIONS_SETTINGS, **settings})
         _atomic_write_json(self.path_for("integrations"), payload)
+        return payload
+
+    def load_mysql(self, *, include_process_overrides: bool = True) -> dict[str, Any]:
+        payload = self._load_or_create(
+            "mysql",
+            DEFAULT_MYSQL_SETTINGS,
+            self._normalize_mysql,
+        )
+        if include_process_overrides:
+            payload = self._apply_mysql_process_overrides(payload)
+        return payload
+
+    def save_mysql(self, settings: dict[str, Any]) -> dict[str, Any]:
+        payload = self._normalize_mysql({**DEFAULT_MYSQL_SETTINGS, **settings})
+        _atomic_write_json(self.path_for("mysql"), payload)
         return payload
 
     def load_document_parsing(self, *, include_process_overrides: bool = True) -> dict[str, Any]:
@@ -1066,6 +1100,34 @@ class RuntimeSettingsService:
             "pocketbase_admin_password": _string(settings.get("pocketbase_admin_password")),
         }
 
+    def _normalize_mysql(self, settings: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "version": 1,
+            "enabled": _coerce_bool(settings.get("enabled"), False),
+            "host": _string(settings.get("host")),
+            "port": _coerce_port(settings.get("port"), 3306),
+            "user": _string(settings.get("user")),
+            "password": _string(settings.get("password")),
+            "database": _string(settings.get("database")),
+        }
+
+    def _apply_mysql_process_overrides(self, settings: dict[str, Any]) -> dict[str, Any]:
+        payload = dict(settings)
+        if value := self._process_env_value("MYSQL_ENABLED"):
+            payload["enabled"] = value
+        if value := self._process_env_value("MYSQL_HOST"):
+            payload["host"] = value
+            payload["enabled"] = True
+        if value := self._process_env_value("MYSQL_PORT"):
+            payload["port"] = value
+        if value := self._process_env_value("MYSQL_USER"):
+            payload["user"] = value
+        if value := self._process_env_value("MYSQL_PASSWORD"):
+            payload["password"] = value
+        if value := self._process_env_value("MYSQL_DB"):
+            payload["database"] = value
+        return self._normalize_mysql(payload)
+
 
 def _bool_env(value: Any) -> str:
     return "true" if _coerce_bool(value, False) else "false"
@@ -1173,6 +1235,11 @@ def load_integrations_settings() -> dict[str, Any]:
     return get_runtime_settings_service().load_integrations()
 
 
+def load_mysql_settings() -> dict[str, Any]:
+    """Return the MySQL session-store settings (mysql.json + env overrides)."""
+    return get_runtime_settings_service().load_mysql()
+
+
 def load_mineru_settings() -> dict[str, Any]:
     return get_runtime_settings_service().load_mineru()
 
@@ -1238,5 +1305,6 @@ __all__ = [
     "load_lightrag_settings",
     "load_llamaindex_settings",
     "load_mineru_settings",
+    "load_mysql_settings",
     "load_system_settings",
 ]
