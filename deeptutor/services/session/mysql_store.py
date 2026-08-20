@@ -190,11 +190,18 @@ CREATE TABLE IF NOT EXISTS dt_turn_events (
 
 
 async def _ensure_schema(pool) -> None:
+    import warnings
+
     async with pool.acquire() as conn:
         async with conn.cursor() as cur:
             for stmt in _SCHEMA.split(";"):
                 if stmt.strip():
-                    await cur.execute(stmt)
+                    # CREATE TABLE IF NOT EXISTS on an existing table makes
+                    # MySQL return a benign "already exists" warning; suppress
+                    # it so startup logs stay quiet.
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        await cur.execute(stmt)
         await conn.commit()
     logger.info("[mysql_store] schema ensured (dt_sessions/dt_messages/dt_turns/dt_turn_events)")
 
