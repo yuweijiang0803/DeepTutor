@@ -1,0 +1,56 @@
+# electron-builder 打包配置
+# 打包时：前端 standalone (web/.next/standalone) 作为 extraResources 随包分发，
+# 运行时由 main.js 在内部拉起它的 Node 服务（见 desktop/main.js）。
+
+appId: com.deeptutor.desktopshell
+productName: DeepTutor
+directories:
+  output: dist-electron
+  # buildResources: build   # 放图标/entitlements 时再启用
+
+files:
+  - "main.js"
+  - "preload.js"
+  - "package.json"
+
+extraResources:
+  - from: "../web/.next/standalone"
+    to: "web-standalone"
+  # Bundled Node so the standalone server runs on machines without Node installed.
+  # bundle-node.js (run before build) drops resources/node (or node.exe) here.
+  - from: "resources"
+    to: "."
+
+mac:
+  category: public.app-category.education   # K12 教育类
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+  # 无开发者证书时打出的 dmg 未签名，本机/内测可直接开；广散或学校分发前需签名+公证。
+  # —— 签名/公证占位（暂不使用，以后填证书即可）——
+  # identity: null                       # 填 "Developer ID Application: ..." 即签名；留 null = 不签名
+  # hardenedRuntime: true
+  # gatekeeperAssess: false
+  # entitlements: build/entitlements.mac.plist
+  # entitlementsInherit: build/entitlements.mac.plist
+  # afterSign: build/notarize.js        # 公证脚本占位（需 appleId/appleIdPassword）
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  # —— 签名占位（暂不使用）——
+  # certificateFile: ./cert.pfx         # Windows 代码签名证书
+  # certificatePassword: ${WIN_CERT_PASSWORD}
+
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+
+# 提示：DESKTOP_NODE_BIN 可强制指定打包内/系统外的 node 二进制路径用于调试。
+

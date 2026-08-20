@@ -1,0 +1,5 @@
+# Bundled Node binary (produced by bundle-node.js at build time)
+resources/
+
+# electron-builder output
+dist-electron/

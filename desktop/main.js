@@ -1,0 +1,116 @@
+// Minimal Electron shell for the DeepTutor web frontend.
+// Loads the frontend two ways, in order of preference:
+//   1. A built Next standalone server (web/.next/standalone/server.js) — fully packaged, no external server needed.
+//   2. An external dev server URL (default http://127.0.0.1:3782) — for quick iteration.
+// The Python LLM backend is NOT bundled; chat/API calls need a backend elsewhere.
+
+const { app, BrowserWindow, ipcMain } = require('electron');
+const { spawn } = require('child_process');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const net = require('net');
+
+const WEB_DIR = path.join(__dirname, '..', 'web');
+const STANDALONE = app.isPackaged
+  ? path.join(process.resourcesPath, 'web-standalone')
+  : path.join(WEB_DIR, '.next', 'standalone');
+const PORT = Number(process.env.DESKTOP_PORT || 4782);
+const EXTERNAL_URL = process.env.WEB_URL || 'http://127.0.0.1:3782';
+// Resolve the Node binary used to launch the standalone server.
+//  1. explicit override (DESKTOP_NODE_BIN)
+//  2. node bundled inside the package (works on machines with no system node)
+//  3. bare 'node' — only safe in a terminal launch where PATH includes node;
+//     a GUI-launched .app has a minimal PATH, so this can fail with ENOENT.
+function resolveNodeBin() {
+  if (process.env.DESKTOP_NODE_BIN && fs.existsSync(process.env.DESKTOP_NODE_BIN)) {
+    return process.env.DESKTOP_NODE_BIN;
+  }
+  if (app.isPackaged) {
+    const base = path.join(process.resourcesPath, 'node');
+    for (const cand of [base, `${base}.exe`]) {
+      if (fs.existsSync(cand)) return cand;
+    }
+  }
+  return 'node';
+}
+const NODE_BIN = resolveNodeBin();
+console.log(`[desktop] standalone server node: ${NODE_BIN}`);
+
+let serverProc = null;
+
+function startStandaloneServer() {
+  const serverJs = path.join(STANDALONE, 'server.js');
+  if (!fs.existsSync(serverJs)) return false;
+  serverProc = spawn(NODE_BIN, [serverJs], {
+    cwd: STANDALONE,
+    env: { ...process.env, PORT: String(PORT), HOSTNAME: '127.0.0.1', NODE_ENV: 'production' },
+    stdio: 'inherit',
+  });
+  serverProc.on('exit', (code) => console.log(`[web-standalone] exited ${code}`));
+  return true;
+}
+
+function waitForPort(cb) {
+  const sock = net.connect(PORT, '127.0.0.1');
+  sock.on('connect', () => { sock.destroy(); cb(); });
+  sock.on('error', () => { sock.destroy(); setTimeout(() => waitForPort(cb), 300); });
+}
+
+function createWindow() {
+  const win = new BrowserWindow({
+    width: 1280,
+    height: 800,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+  const usingStandalone = fs.existsSync(path.join(STANDALONE, 'server.js'));
+  if (usingStandalone) {
+    waitForPort(() => win.loadURL(`http://127.0.0.1:${PORT}`));
+  } else {
+    win.loadURL(EXTERNAL_URL);
+  }
+  return win;
+}
+
+// --- Local file access bridge (scaffold for the "read/write local files" goal) ---
+// Demo scope: reads/listing limited to the user's home dir; writes limited to the app data dir.
+// Production: tighten the read root to a user-chosen folder with explicit consent, and never write outside app data.
+const READ_ROOT = os.homedir();
+function safeResolve(root, p) {
+  const resolved = path.resolve(root, p || '');
+  if (resolved !== root && !resolved.startsWith(root + path.sep)) {
+    throw new Error('path escapes allowed root');
+  }
+  return resolved;
+}
+ipcMain.handle('dt:listDir', async (_e, rel) => {
+  const dir = safeResolve(READ_ROOT, rel);
+  const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+  return entries.map((x) => ({ name: x.name, isDir: x.isDirectory() }));
+});
+ipcMain.handle('dt:readFile', async (_e, rel) => {
+  const file = safeResolve(READ_ROOT, rel);
+  return await fs.promises.readFile(file, 'utf8');
+});
+ipcMain.handle('dt:writeFile', async (_e, rel, content) => {
+  const dir = app.getPath('userData');
+  const file = safeResolve(dir, rel);
+  await fs.promises.mkdir(path.dirname(file), { recursive: true });
+  await fs.promises.writeFile(file, content);
+  return file;
+});
+
+app.whenReady().then(() => {
+  startStandaloneServer();
+  createWindow();
+});
+
+app.on('window-all-closed', () => {
+  if (serverProc) serverProc.kill();
+  if (process.platform !== 'darwin') app.quit();
+});
+app.on('before-quit', () => { if (serverProc) serverProc.kill(); });
