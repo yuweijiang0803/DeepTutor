@@ -1,0 +1,31 @@
+# 追加到 xiaozhi/docker-compose.yml 的 services: 下（两个服务）
+# 注意：仅新增，不改动任何现有服务
+
+  deeptutor:
+    build: ./deeptutor
+    container_name: deeptutor
+    working_dir: /app
+    volumes:
+      - ./deeptutor:/app          # 代码挂载（rsync 更新后 force-recreate 生效）
+      - ./deeptutor-data:/data    # 数据目录独立，rsync --delete 不误删
+    command: ["deeptutor", "serve"]
+    environment:
+      - TZ=Asia/Shanghai
+      - DEEPTUTOR_HOME=/data
+    networks:
+      - proxy-net
+    restart: always
+
+  deeptutor-web:
+    build: ./deeptutor-web
+    container_name: deeptutor-web
+    working_dir: /app
+    command: ["node", "server.js"]
+    environment:
+      - TZ=Asia/Shanghai
+      - PORT=3782
+      - DEEPTUTOR_API_BASE_URL=http://deeptutor:8001   # 后端地址（web/proxy.ts 读取）
+      - DEEPTUTOR_AUTH_ENABLED=true
+    networks:
+      - proxy-net
+    restart: always

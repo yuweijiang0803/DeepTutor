@@ -1,0 +1,21 @@
+# DeepTutor 前端镜像（Next standalone，浏览器访问用）
+#
+# 前提：先本地执行 deploy/build-web.sh，把构建产物打包进 ./deeptutor-web：
+#   server.js + node_modules + .next/static + public（自包含）
+# 然后 rsync ./deeptutor-web 到服务器 /app/xzserver/deeptutor-web，
+# `docker compose up -d --build deeptutor-web` 即可。
+#
+# 浏览器端用相对 /api（同源），后端地址由服务端 env 指定：
+#   DEEPTUTOR_API_BASE_URL=http://deeptutor:8001  （web/proxy.ts 读取）
+FROM node:22-alpine
+
+WORKDIR /app
+
+COPY . .
+
+ENV PORT=3782
+ENV HOSTNAME=0.0.0.0
+
+EXPOSE 3782
+
+CMD ["node", "server.js"]
