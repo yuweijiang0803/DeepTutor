@@ -84,6 +84,8 @@ yarn-error.log*
 web/.next/
 out/
 web/out/
+# 前端 standalone 构建产物（deploy/build-web.sh 产出），后端镜像构建不该带
+deeptutor-web/
 
 # ============================================
 # IDE and Editor

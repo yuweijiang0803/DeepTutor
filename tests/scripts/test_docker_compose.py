@@ -147,51 +147,24 @@ def test_container_docs_use_temporary_codex_oauth_bridge() -> None:
     ) in normalized_section
 
 
-def test_dockerfile_is_json_driven_without_bundle_sed() -> None:
-    """The image no longer rewrites the built bundle at startup (the runtime
-    ``sed -i`` broke under a read-only rootfs). URL/auth knowledge is JSON-driven:
-    the entrypoint re-exports runtime settings from data/user/settings/*.json
-    (including DEEPTUTOR_API_BASE_URL / DEEPTUTOR_AUTH_ENABLED) and web/proxy.ts
-    forwards /api/* and /ws/* to the backend at request time."""
+def test_deploy_dockerfile_is_pure_backend() -> None:
+    """The xiaozhi deploy image is a pure backend image (deps baked into the
+    image, code volume-mounted, ``deeptutor serve``). The old multi-stage
+    supervisord image (backend + frontend in one container) and the build-time
+    URL placeholder are gone — the frontend runs in the separate deeptutor-web
+    container, and web/proxy.ts forwards /api/* and /ws/* at request time."""
     root = Path(__file__).resolve().parents[2]
     content = (root / "Dockerfile").read_text(encoding="utf-8")
-    # The build-time placeholder + runtime bundle sed mechanism is gone.
+    # No build-time URL placeholder / runtime bundle sed.
     assert "__NEXT_PUBLIC_API_BASE_PLACEHOLDER__" not in content
     assert "__NEXT_PUBLIC_AUTH_ENABLED_PLACEHOLDER__" not in content
-    # Still JSON-driven: stale runtime env names are ignored and re-exported
-    # from the settings JSON on every start.
-    assert "DEEPTUTOR_IGNORE_PROCESS_ENV_OVERRIDES=1" in content
-    assert 'unset "$key"' in content
-    assert "export_runtime_settings_to_env" in content
-
-
-def test_supervisord_runs_as_root_with_unprivileged_children() -> None:
-    """supervisord itself must run as root so it can open the container's
-    stdout/stderr (``/dev/fd/1,2`` — root-owned pipes under a rootful daemon
-    such as Docker Desktop) and write its pidfile under ``/var/run``. Dropping
-    supervisord to the unprivileged ``deeptutor`` user via ``gosu`` made child
-    spawning fail with ``EACCES`` ("making dispatchers ... EACCES"), so neither
-    the backend nor the frontend started under rootful Docker (it only worked
-    under rootless podman). The app processes stay non-root via the per-program
-    ``user=deeptutor`` directive instead, which keeps them unprivileged in both
-    runtimes. This guards against reintroducing the ``gosu`` privilege drop.
-    """
-    root = Path(__file__).resolve().parents[2]
-    content = (root / "Dockerfile").read_text(encoding="utf-8")
-    # supervisord is launched directly (as root), not behind a gosu priv-drop.
-    assert "exec /usr/bin/supervisord" in content
-    assert "gosu deeptutor /usr/bin/supervisord" not in content
-    # Every supervisord program drops to the unprivileged deeptutor user, so the
-    # backend/frontend processes never run as root. Each config heredoc closes
-    # with ``EOF``; slice to it so a program's section is bounded correctly.
-    program_blocks = content.split("[program:")[1:]
-    assert program_blocks, "expected supervisord [program:*] sections in the Dockerfile"
-    for block in program_blocks:
-        name = block.splitlines()[0].rstrip("]")
-        section = block.split("EOF")[0]
-        assert "user=deeptutor" in section, (
-            f"supervisord program '{name}' must run as deeptutor (user=deeptutor)"
-        )
+    # Pure backend: no supervisord, no entrypoint env-reexport machinery.
+    assert "supervisord" not in content
+    assert "[program:" not in content
+    assert "DEEPTUTOR_IGNORE_PROCESS_ENV_OVERRIDES" not in content
+    # Backend command, and the requirements/ copy the build depends on.
+    assert 'CMD ["deeptutor", "serve"]' in content
+    assert "COPY requirements/ ./requirements/" in content
 
 
 def test_frontend_api_is_url_agnostic_passthrough() -> None:

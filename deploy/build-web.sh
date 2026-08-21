@@ -38,5 +38,8 @@ if [ -d "$WEB/public" ]; then
     cp -R "$WEB/public" "$OUT/public"
 fi
 
+# 前端 Dockerfile 随包（compose build: ./deeptutor-web 会找它）
+cp "$ROOT/deploy/Dockerfile.web" "$OUT/Dockerfile"
+
 echo "[3/3] 完成: $OUT"
 du -sh "$OUT"

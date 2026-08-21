@@ -18,6 +18,10 @@ services:
     build:
       target: development
 
+    ports:
+      # base 镜像（后端）的 8001 继承自 docker-compose.yml；dev 前端端口在此补回
+      - "${DEEPTUTOR_DOCKER_FRONTEND_PORT:-3782}:${DEEPTUTOR_DOCKER_FRONTEND_PORT:-3782}"
+
     volumes:
       # Mount backend source code for hot-reload
       - ./deeptutor:/app/deeptutor:ro

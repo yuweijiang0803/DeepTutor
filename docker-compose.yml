@@ -55,12 +55,13 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      target: production
+      # base = 纯后端部署镜像（development 阶段由 docker-compose.dev.yml 覆盖）
+      target: base
     container_name: deeptutor
     restart: unless-stopped
     ports:
+      # 后端镜像不打包前端；Web 由 xiaozhi 部署方案里的 deeptutor-web 容器承担
       - "${DEEPTUTOR_DOCKER_BACKEND_PORT:-8001}:${DEEPTUTOR_DOCKER_BACKEND_PORT:-8001}"
-      - "${DEEPTUTOR_DOCKER_FRONTEND_PORT:-3782}:${DEEPTUTOR_DOCKER_FRONTEND_PORT:-3782}"
 
     volumes:
       # Everything DeepTutor persists lives under ./data — one tree to mount
@@ -74,6 +75,9 @@ services:
       - ./data:/app/data
 
     environment:
+      # 镜像默认 DEEPTUTOR_HOME=/data（xiaozhi 部署），repo 本地 compose 用
+      # /app/data 以匹配上面的 ./data:/app/data 挂载
+      - DEEPTUTOR_HOME=/app/data
       # Route untrusted shell exec to the runner sidecar (SYSTEM isolation).
       # When this is set, the main app NEVER runs untrusted code in its own
       # process — see deeptutor/services/sandbox/config.py:build_backend().
@@ -83,7 +87,14 @@ services:
       - DEEPTUTOR_SANDBOX_RUNNER_URL=http://sandbox-runner:8900
 
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:${DEEPTUTOR_DOCKER_BACKEND_PORT:-8001}/"]
+      # base 镜像（python:3.12-slim）没有 curl，用 stdlib urllib
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:${DEEPTUTOR_DOCKER_BACKEND_PORT:-8001}/',timeout=5).status==200 else 1)",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3

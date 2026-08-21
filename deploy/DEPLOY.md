@@ -1,6 +1,6 @@
 # DeepTutor 部署到 xiaozhi 服务器（Docker Compose + rsync + nginx）
 
-> 目标服务器：`root@xiaozhi1.looosen.cn`，应用目录 `/app/xzserver`（与 xiaozhi 同一台）
+> 目标服务器：`root@<xiaozhi服务器>`，应用目录 `/app/xzserver`（与 xiaozhi 同一台）
 > 原则：**完全独立** —— 只新增 deeptutor 后端容器、deeptutor-web 前端容器、nginx 域名段，
 > 不碰 xiaozhi 任何现有服务；MySQL 只用自己的 `dt_*` 表和 `user.dt_user_id` 列。
 
@@ -8,7 +8,7 @@
 
 | 文件 | 放哪 | 说明 |
 |---|---|---|
-| `deploy/Dockerfile` | deeptutor 仓库 | 后端镜像（依赖装镜像，代码 volume 挂载） |
+| `Dockerfile`（仓库根目录） | deeptutor 仓库 | 后端镜像（依赖装镜像，代码 volume 挂载；`target: base`） |
 | `deploy/Dockerfile.web` | deeptutor 仓库 | 前端镜像（Next standalone） |
 | `deploy/build-web.sh` | deeptutor 仓库 | 本地构建前端并打包 `deeptutor-web/` |
 | `deploy/docker-compose.deeptutor.yml` | 追加进 xiaozhi 的 compose | 两个服务段 |
@@ -24,10 +24,10 @@
 cd /Users/heyuanlin/Documents/DeepTutor
 bash deploy/build-web.sh              # 产出 deeptutor-web/（自包含前端）
 
-# xiaozhi 仓库：把 deploy 里的片段合入
-#  - docker-compose.deeptutor.yml → docker-compose.yml services 下
-#  - nginx.deeptutor.conf          → nginx/nginx.conf http 内
-#  - sync.sh 追加 deeptutor、deeptutor-web 两个 case/默认项
+# xiaozhi 仓库：deploy 里的片段已合入（2026-08-21）
+#  - docker-compose.deeptutor.yml → docker-compose.yml services 下（deeptutor + deeptutor-web）
+#  - nginx.deeptutor.conf          → nginx/nginx.conf http 内（tutor.hourofai.cn 段）
+#  - sync.sh 已加 deeptutor、deeptutor-web 分支与默认项
 ```
 
 ### 2. 同步到服务器
@@ -39,13 +39,16 @@ cd /Users/heyuanlin/Documents/guyuai/xiaozhi
 ./sync.sh nginx            # docker-compose.yml + nginx 配置
 ```
 
-> sync.sh 需要先加上 `deeptutor|deeptutor-web) src="./$item" ;;` 分支。
+> sync.sh 已加 `deeptutor`（源 `../../DeepTutor/` → 目标小写 deeptutor）和
+> `deeptutor-web`（源 `../../DeepTutor/deeptutor-web`）分支；deeptutor 同步时
+> 排除本地 `data/`、`deeptutor-web/`、`.next`、`desktop/`（Electron 1.8G 打包物）、
+> `.DS_Store`（数据/前端/桌面端产物不随仓库进服务器）。
 
 ### 3. 服务器构建并启动
 
 ```bash
-ssh root@xiaozhi1.looosen.cn "cd /app/xzserver && docker compose up -d --build deeptutor deeptutor-web"
-ssh root@xiaozhi1.looosen.cn "cd /app/xzserver && docker compose exec nginx nginx -s reload"
+ssh root@<xiaozhi服务器> "cd /app/xzserver && docker compose up -d --build deeptutor deeptutor-web"
+ssh root@<xiaozhi服务器> "cd /app/xzserver && docker compose exec nginx nginx -s reload"
 ```
 
 ### 4. 服务器初始化配置（`/app/xzserver/deeptutor-data/`）
@@ -54,20 +57,22 @@ ssh root@xiaozhi1.looosen.cn "cd /app/xzserver && docker compose exec nginx ngin
 
 ```bash
 # mysql.json —— 指向 RDS
-#   { "enabled": true, "host": "rm-7xv9o4cd9r52zq033.mysql.rds.aliyuncs.com",
-#     "port": 3306, "user": "xiaozhi", "password": "<config.yaml密码>", "database": "mixly" }
+#   host / user / password 从小智私有仓库 manager/config.yaml 的 database.mysql 段取值
+#   { "enabled": true, "host": "<database.mysql.host>",
+#     "port": 3306, "user": "<database.mysql.user>", "password": "<database.mysql.password>", "database": "<database.mysql.database>" }
 #
-# xiaozhi.json —— SSO JWT 密钥（和小智 config.yaml 里 token SECRET 一致）
-#   { "jwt_secret": "4SJehCMaaH4Qplc8" }
+# xiaozhi.json —— SSO JWT 密钥（与小智私有仓库 manager/core/utils/token.py 的
+#   SECRET_KEY 一致；密钥本身不进仓库）
+#   { "jwt_secret": "<SECRET_KEY>" }
 #
 # auth.json —— 开启登录
 #   { "enabled": true, ... }
 ```
 
 ```bash
-ssh root@xiaozhi1.looosen.cn "mkdir -p /app/xzserver/deeptutor-data/user/settings"
+ssh root@<xiaozhi服务器> "mkdir -p /app/xzserver/deeptutor-data/user/settings"
 # 把三个 json 写入后：
-ssh root@xiaozhi1.looosen.cn "cd /app/xzserver && docker compose up -d --force-recreate deeptutor"
+ssh root@<xiaozhi服务器> "cd /app/xzserver && docker compose up -d --force-recreate deeptutor"
 ```
 
 ### 5. LLM key
@@ -75,7 +80,7 @@ ssh root@xiaozhi1.looosen.cn "cd /app/xzserver && docker compose up -d --force-r
 后端起来后，进容器配置（或先本地 `deeptutor init` 后把 data/ 同步上去）：
 
 ```bash
-ssh root@xiaozhi1.looosen.cn "cd /app/xzserver && docker compose exec deeptutor deeptutor init"
+ssh root@<xiaozhi服务器> "cd /app/xzserver && docker compose exec deeptutor deeptutor init"
 ```
 
 ### 6. DNS + 验证
@@ -97,16 +102,16 @@ cd /Users/heyuanlin/Documents/guyuai/xiaozhi
 # 前端更新（先本地 build-web.sh，再同步 + 重建镜像）
 bash /Users/heyuanlin/Documents/DeepTutor/deploy/build-web.sh
 ./sync.sh deeptutor-web
-ssh root@xiaozhi1.looosen.cn "cd /app/xzserver && docker compose up -d --build deeptutor-web"
+ssh root@<xiaozhi服务器> "cd /app/xzserver && docker compose up -d --build deeptutor-web"
 ```
 
 ## 四、回滚
 
 ```bash
 # 停掉 DeepTutor 相关容器（xiaozhi 不受影响）
-ssh root@xiaozhi1.looosen.cn "cd /app/xzserver && docker compose stop deeptutor deeptutor-web"
+ssh root@<xiaozhi服务器> "cd /app/xzserver && docker compose stop deeptutor deeptutor-web"
 # 或彻底移除
-ssh root@xiaozhi1.looosen.cn "cd /app/xzserver && docker compose rm -sf deeptutor deeptutor-web"
+ssh root@<xiaozhi服务器> "cd /app/xzserver && docker compose rm -sf deeptutor deeptutor-web"
 ```
 
 ## 五、安全注意

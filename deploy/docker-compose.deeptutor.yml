@@ -2,12 +2,17 @@
 # 注意：仅新增，不改动任何现有服务
 
   deeptutor:
-    build: ./deeptutor
+    build:
+      context: ./deeptutor
+      # base = 纯后端镜像；跳过 development 阶段（不需要 npm/前端依赖）
+      target: base
     container_name: deeptutor
     working_dir: /app
     volumes:
       - ./deeptutor:/app          # 代码挂载（rsync 更新后 force-recreate 生效）
-      - ./deeptutor-data:/data    # 数据目录独立，rsync --delete 不误删
+      # DEEPTUTOR_HOME=/data，数据根是 <home>/data（/data/data），
+      # 挂到这里使持久化数据落在 deeptutor-data/ 根下（含 user/settings）
+      - ./deeptutor-data:/data/data
     command: ["deeptutor", "serve"]
     environment:
       - TZ=Asia/Shanghai
