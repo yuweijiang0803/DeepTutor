@@ -1,8 +1,18 @@
-"""Auth router — login, logout, status, registration, profile, and user-management endpoints."""
+"""Auth router — login, logout, status, registration, profile, and user-management endpoints.
+
+Modified from DeepTutor (Apache-2.0, https://github.com/HKUDS/DeepTutor).
+Original copyright: 2025 Data Intelligence Lab, The University of Hong Kong.
+This file was modified by yuweijiang0803 for the K12 teaching-engine fork:
+added the XiaoZhi (manager-web) SSO login bridge endpoint
+POST /api/v1/auth/xiaozhi-login. See git history and NOTICE for details.
+"""
 
 from contextvars import Token as _CtxToken
+import json
 import logging
+import os
 import re
+import secrets
 
 from fastapi import (
     APIRouter,
@@ -477,6 +487,142 @@ async def login(body: LoginRequest, response: Response) -> dict:
         "username": result.username,
         "role": result.role,
         "is_admin": result.role == "admin",
+    }
+
+
+# ---------------------------------------------------------------------------
+# XiaoZhi (manager-web) SSO login bridge — fork addition
+# ---------------------------------------------------------------------------
+
+
+class XiaoZhiLoginRequest(BaseModel):
+    """Body of ``POST /api/v1/auth/xiaozhi-login``: the XiaoZhi ``mix-token``."""
+
+    token: str = ""
+
+
+def _xiaozhi_jwt_secret() -> str:
+    """Shared JWT secret used to verify XiaoZhi tokens.
+
+    Read from the ``XIAOZHI_JWT_SECRET`` env var, falling back to
+    ``data/user/settings/xiaozhi.json`` (``{"jwt_secret": "..."}``).
+    """
+    secret = os.environ.get("XIAOZHI_JWT_SECRET", "").strip()
+    if secret:
+        return secret
+    try:
+        from deeptutor.services.path_service import get_path_service
+
+        cfg = get_path_service().get_user_root() / "settings" / "xiaozhi.json"
+        if cfg.exists():
+            return str(json.loads(cfg.read_text(encoding="utf-8")).get("jwt_secret") or "")
+    except Exception:
+        pass
+    return ""
+
+
+async def _find_dt_user_id(xz_user_id: str) -> str:
+    """Return ``mixly.user.dt_user_id`` for a XiaoZhi user, or ``""``."""
+    from deeptutor.services.session.mysql_store import get_mysql_pool
+
+    pool = await get_mysql_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "SELECT dt_user_id FROM `user` WHERE id = %s", (xz_user_id,)
+            )
+            row = await cur.fetchone()
+            return str(row["dt_user_id"]) if row and row.get("dt_user_id") else ""
+
+
+async def _set_dt_user_id(xz_user_id: str, dt_user_id: str) -> None:
+    """Back-fill ``mixly.user.dt_user_id`` for a XiaoZhi user."""
+    from deeptutor.services.session.mysql_store import get_mysql_pool
+
+    pool = await get_mysql_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                "UPDATE `user` SET dt_user_id = %s WHERE id = %s",
+                (dt_user_id, xz_user_id),
+            )
+        await conn.commit()
+
+
+def _shadow_user_id(username: str) -> str:
+    """Id of a DeepTutor shadow user by username, or ``""``."""
+    try:
+        from deeptutor.services.auth import _load_users
+
+        return str((_load_users().get(username) or {}).get("id") or "")
+    except Exception:
+        return ""
+
+
+@router.post("/xiaozhi-login")
+async def xiaozhi_login(body: XiaoZhiLoginRequest, response: Response) -> dict:
+    """Exchange a XiaoZhi (manager-web) ``mix-token`` for a DeepTutor session.
+
+    1. Verifies the token with the shared JWT secret.
+    2. Maps ``xz_user_id`` → ``mixly.user.dt_user_id``.
+    3. On first login, auto-creates a DeepTutor shadow user
+       (username ``xz_<xz_user_id>``) and back-fills the column.
+    4. Signs a DeepTutor token and sets it as the ``dt_token`` cookie.
+    """
+    from deeptutor.services.session.mysql_store import mysql_configured
+
+    if not mysql_configured():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="MySQL session store is required for XiaoZhi SSO",
+        )
+    secret = _xiaozhi_jwt_secret()
+    if not secret:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="XiaoZhi SSO not configured (missing jwt_secret)",
+        )
+    try:
+        from jose import jwt
+
+        payload = jwt.decode(body.token, secret, algorithms=["HS256"])
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid XiaoZhi token",
+        )
+    if payload.get("v") != 1:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unsupported XiaoZhi token version",
+        )
+    ident = payload.get("i") or []
+    if not ident:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing XiaoZhi user identity",
+        )
+    xz_user_id = str(ident[0])
+    dt_username = f"xz_{xz_user_id}"
+
+    dt_user_id = await _find_dt_user_id(xz_user_id)
+    if not dt_user_id:
+        dt_user_id = _shadow_user_id(dt_username)
+        if not dt_user_id:
+            add_user(dt_username, secrets.token_urlsafe(24), role="user")
+            dt_user_id = _shadow_user_id(dt_username)
+        if dt_user_id:
+            await _set_dt_user_id(xz_user_id, dt_user_id)
+
+    token = create_token(dt_username, "user", dt_user_id)
+    response.set_cookie(value=token, max_age=_COOKIE_MAX_AGE, **_cookie_attrs())
+    logger.info(f"XiaoZhi user '{xz_user_id}' logged in as DeepTutor '{dt_username}'")
+    return {
+        "ok": True,
+        "user_id": dt_user_id,
+        "username": dt_username,
+        "role": "user",
+        "is_admin": False,
     }
 
 
