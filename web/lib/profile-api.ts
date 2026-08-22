@@ -8,6 +8,8 @@ export interface ProfileInfo {
   disabled?: boolean;
   /** Avatar marker: "", "icon:<name>:<color>", or "img:<version>". */
   avatar?: string;
+  /** Display name (XiaoZhi SSO users carry their XiaoZhi nickname). */
+  nickname?: string;
 }
 
 function extractDetail(data: unknown, fallback: string): string {

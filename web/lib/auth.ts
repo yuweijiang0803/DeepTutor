@@ -16,6 +16,8 @@ export interface AuthStatus {
   is_admin?: boolean;
   /** Avatar marker: "", "icon:<name>:<color>", or "img:<version>". */
   avatar?: string;
+  /** Display name (XiaoZhi SSO users carry their XiaoZhi nickname). */
+  nickname?: string;
 }
 
 /**
@@ -75,6 +77,33 @@ function extractDetail(detail: unknown): string {
       return String((first as { msg: unknown }).msg);
   }
   return "Request failed";
+}
+
+/**
+ * Exchange a XiaoZhi (manager-web) ``mix-token`` for a DeepTutor session.
+ * On first login the backend auto-creates a shadow user (``xz_<id>``), so
+ * XiaoZhi users never need a DeepTutor account.
+ */
+export async function xiaozhiLogin(
+  token: string,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await apiFetch(apiUrl("/api/v1/auth/xiaozhi-login"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+      // SSO failures (invalid/expired token) surface inline, not via the
+      // global login redirect.
+      skipAuthRedirect: true,
+    });
+
+    if (res.ok) return { ok: true };
+
+    const data = await res.json().catch(() => ({}));
+    return { ok: false, error: extractDetail(data.detail) ?? "Login failed" };
+  } catch {
+    return { ok: false, error: "Could not reach the server" };
+  }
 }
 
 /**

@@ -68,6 +68,8 @@ def _canonical_record(
         "created_at": str(value.get("created_at") or utc_now()),
         "disabled": bool(value.get("disabled", False)),
         "avatar": str(value.get("avatar") or ""),
+        # Display name (XiaoZhi SSO shadow users); must survive the load round-trip.
+        "nickname": str(value.get("nickname") or ""),
     }
 
 
@@ -206,7 +208,12 @@ def load_users(  # nosec B107 - empty defaults mean "no env fallback supplied".
     return canonical
 
 
-def save_user(username: str, hashed_password: str, role: Role = "user") -> dict[str, Any]:
+def save_user(
+    username: str,
+    hashed_password: str,
+    role: Role = "user",
+    nickname: str = "",
+) -> dict[str, Any]:
     USERS_FILE.parent.mkdir(parents=True, exist_ok=True)
     # Read-modify-write must be atomic so concurrent first-time registrations
     # cannot each see an empty store and each promote themselves to admin.
@@ -230,6 +237,9 @@ def save_user(username: str, hashed_password: str, role: Role = "user") -> dict[
             "created_at": str(existing.get("created_at") or utc_now()),
             "disabled": bool(existing.get("disabled", False)),
             "avatar": str(existing.get("avatar") or ""),
+            # New value wins (SSO can refresh a changed XiaoZhi nickname),
+            # otherwise keep whatever is already stored.
+            "nickname": str(nickname or existing.get("nickname") or ""),
         }
         users[username] = record
         _write_users(users)
@@ -248,6 +258,7 @@ def list_user_info(  # nosec B107 - empty defaults mean "no env fallback supplie
             "created_at": record.get("created_at", ""),
             "disabled": bool(record.get("disabled", False)),
             "avatar": str(record.get("avatar") or ""),
+            "nickname": str(record.get("nickname") or ""),
         }
         for username, record in load_users(env_username, env_password_hash).items()
     ]

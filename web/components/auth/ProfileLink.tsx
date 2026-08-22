@@ -26,9 +26,11 @@ export function ProfileLink({ collapsed = false }: ProfileLinkProps) {
   if (!status?.username) return null;
 
   const active = pathname.startsWith("/profile");
+  // Prefer the display nickname (XiaoZhi SSO), fall back to the username.
+  const displayName = status.nickname || status.username;
   const avatar = (
     <UserAvatar
-      username={status.username}
+      username={displayName}
       userId={status.user_id}
       avatar={status.avatar}
       role={status.role}
@@ -47,7 +49,7 @@ export function ProfileLink({ collapsed = false }: ProfileLinkProps) {
               : "text-[var(--muted-foreground)] hover:bg-[var(--background)]/50 hover:text-[var(--foreground)]"
           }`}
         aria-label={t("My profile")}
-        title={`${t("My profile")} — ${status.username}`}
+        title={`${t("My profile")} — ${displayName}`}
       >
         {avatar}
       </Link>
@@ -66,7 +68,7 @@ export function ProfileLink({ collapsed = false }: ProfileLinkProps) {
       title={t("My profile")}
     >
       {avatar}
-      <span className="truncate">{status.username}</span>
+      <span className="truncate">{displayName}</span>
     </Link>
   );
 }

@@ -184,7 +184,7 @@ export default function ProfilePage() {
 
   const descriptor = parseAvatarMarker(profile?.avatar);
   const hasImage = descriptor.kind === "image";
-  const fallback = fallbackAvatarFor(profile?.username ?? "");
+  const fallback = fallbackAvatarFor(profile?.nickname || (profile?.username ?? ""));
   const selectedIcon =
     descriptor.kind === "icon"
       ? descriptor.icon
@@ -243,7 +243,7 @@ export default function ProfilePage() {
             <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-6 shadow-sm">
               <div className="flex items-center gap-5">
                 <UserAvatar
-                  username={profile.username}
+                  username={profile.nickname || profile.username}
                   userId={profile.id}
                   avatar={profile.avatar}
                   role={profile.role}
@@ -252,7 +252,7 @@ export default function ProfilePage() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2.5">
                     <span className="truncate text-lg font-semibold text-[var(--foreground)]">
-                      {profile.username}
+                      {profile.nickname || profile.username}
                     </span>
                     <span
                       className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${

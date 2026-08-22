@@ -153,6 +153,7 @@ class AuthStatusResponse(BaseModel):
     role: str | None = None
     is_admin: bool = False
     avatar: str = ""
+    nickname: str = ""
 
 
 class UserInfo(BaseModel):
@@ -164,6 +165,7 @@ class UserInfo(BaseModel):
     created_at: str
     disabled: bool = False
     avatar: str = ""
+    nickname: str = ""
 
 
 # Markers settable through PUT /profile. Image markers ("img:<version>") are
@@ -428,10 +430,12 @@ async def auth_status(
     token = _extract_token(authorization, dt_token)
     payload = decode_token(token) if token else None
     avatar = ""
+    nickname = ""
     if payload is not None:
         info = get_user_info(payload.username)
         if info:
             avatar = str(info.get("avatar") or "")
+            nickname = str(info.get("nickname") or "")
     return AuthStatusResponse(
         enabled=True,
         authenticated=payload is not None,
@@ -440,6 +444,7 @@ async def auth_status(
         role=payload.role if payload else None,
         is_admin=payload.role == "admin" if payload else False,
         avatar=avatar,
+        nickname=nickname,
     )
 
 
@@ -469,25 +474,29 @@ async def login(body: LoginRequest, response: Response) -> dict:
             "is_admin": payload.role == "admin",
         }
 
-    # Standard JWT + bcrypt mode
+    # Standard JWT + bcrypt mode (DeepTutor's own accounts).
     result = authenticate(body.username, body.password)
-    if not result:
+    if result:
+        token = create_token(result.username, result.role, result.user_id)
+        response.set_cookie(value=token, max_age=_COOKIE_MAX_AGE, **_cookie_attrs())
+        logger.info(f"User '{result.username}' logged in (role={result.role!r})")
+        return {
+            "ok": True,
+            "user_id": result.user_id,
+            "username": result.username,
+            "role": result.role,
+            "is_admin": result.role == "admin",
+        }
+
+    # Fall back to XiaoZhi accounts (``mixly.user``, md5(password+salt)) so the
+    # login form accepts XiaoZhi credentials directly — the unified account.
+    xz_user_id = await _xiaozhi_verify_credentials(body.username, body.password)
+    if not xz_user_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
         )
-
-    token = create_token(result.username, result.role, result.user_id)
-    response.set_cookie(value=token, max_age=_COOKIE_MAX_AGE, **_cookie_attrs())
-
-    logger.info(f"User '{result.username}' logged in (role={result.role!r})")
-    return {
-        "ok": True,
-        "user_id": result.user_id,
-        "username": result.username,
-        "role": result.role,
-        "is_admin": result.role == "admin",
-    }
+    return await _complete_xz_login(xz_user_id, response)
 
 
 # ---------------------------------------------------------------------------
@@ -549,6 +558,90 @@ async def _set_dt_user_id(xz_user_id: str, dt_user_id: str) -> None:
         await conn.commit()
 
 
+async def _find_xz_nickname(xz_user_id: str) -> str:
+    """Return the XiaoZhi display nickname for a user, or ``""``."""
+    from deeptutor.services.session.mysql_store import get_mysql_pool
+
+    try:
+        pool = await get_mysql_pool()
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "SELECT nickname FROM `user` WHERE id = %s", (xz_user_id,)
+                )
+                row = await cur.fetchone()
+                return str(row["nickname"]) if row and row.get("nickname") else ""
+    except Exception:
+        # SSO must not fail because the nickname lookup did — fall back to the
+        # xz_<id> username.
+        return ""
+
+
+async def _xiaozhi_verify_credentials(username: str, password: str) -> str:
+    """Verify a XiaoZhi (``mixly.user``) account by username + password.
+
+    XiaoZhi stores ``md5(password + salt)`` (see manager ``util.md5_str``).
+    Returns the XiaoZhi user id on success, ``""`` otherwise. Mirrors the
+    manager's own login check so the DeepTutor login form can accept XiaoZhi
+    credentials directly.
+    """
+    import hashlib
+
+    from deeptutor.services.session.mysql_store import mysql_configured
+
+    if not mysql_configured():
+        return ""
+    from deeptutor.services.session.mysql_store import get_mysql_pool
+
+    try:
+        pool = await get_mysql_pool()
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "SELECT id, password, salt FROM `user` WHERE username = %s",
+                    (username,),
+                )
+                row = await cur.fetchone()
+                if not row:
+                    return ""
+                hashed = hashlib.md5(
+                    (password + str(row["salt"] or "")).encode("utf-8")
+                ).hexdigest()
+                return str(row["id"]) if hashed == str(row["password"] or "") else ""
+    except Exception:
+        return ""
+
+
+async def _complete_xz_login(xz_user_id: str, response: Response) -> dict:
+    """Create/refresh the ``xz_<id>`` shadow user and sign the DeepTutor token.
+
+    Shared by the XiaoZhi SSO endpoint and the login form's XiaoZhi-account
+    branch. Keeps any existing role (an admin promoted in DeepTutor must not be
+    demoted by a re-login) and syncs the display nickname from XiaoZhi.
+    """
+    dt_username = f"xz_{xz_user_id}"
+    nickname = await _find_xz_nickname(xz_user_id)
+
+    existing = get_user_info(dt_username) or {}
+    effective_role = str(existing.get("role") or "user")
+    # The random password is irrelevant — XiaoZhi-account users never use it.
+    add_user(dt_username, secrets.token_urlsafe(24), role=effective_role, nickname=nickname)
+    dt_user_id = _shadow_user_id(dt_username) or str(existing.get("id") or "")
+    if dt_user_id:
+        await _set_dt_user_id(xz_user_id, dt_user_id)
+
+    token = create_token(dt_username, effective_role, dt_user_id)
+    response.set_cookie(value=token, max_age=_COOKIE_MAX_AGE, **_cookie_attrs())
+    logger.info(f"XiaoZhi user '{xz_user_id}' logged in as DeepTutor '{dt_username}'")
+    return {
+        "ok": True,
+        "user_id": dt_user_id,
+        "username": dt_username,
+        "role": effective_role,
+        "is_admin": effective_role == "admin",
+    }
+
+
 def _shadow_user_id(username: str) -> str:
     """Id of a DeepTutor shadow user by username, or ``""``."""
     try:
@@ -603,27 +696,8 @@ async def xiaozhi_login(body: XiaoZhiLoginRequest, response: Response) -> dict:
             detail="Missing XiaoZhi user identity",
         )
     xz_user_id = str(ident[0])
-    dt_username = f"xz_{xz_user_id}"
-
-    dt_user_id = await _find_dt_user_id(xz_user_id)
-    if not dt_user_id:
-        dt_user_id = _shadow_user_id(dt_username)
-        if not dt_user_id:
-            add_user(dt_username, secrets.token_urlsafe(24), role="user")
-            dt_user_id = _shadow_user_id(dt_username)
-        if dt_user_id:
-            await _set_dt_user_id(xz_user_id, dt_user_id)
-
-    token = create_token(dt_username, "user", dt_user_id)
-    response.set_cookie(value=token, max_age=_COOKIE_MAX_AGE, **_cookie_attrs())
-    logger.info(f"XiaoZhi user '{xz_user_id}' logged in as DeepTutor '{dt_username}'")
-    return {
-        "ok": True,
-        "user_id": dt_user_id,
-        "username": dt_username,
-        "role": "user",
-        "is_admin": False,
-    }
+    logger.info(f"SSO xz_user={xz_user_id!r}")
+    return await _complete_xz_login(xz_user_id, response)
 
 
 @router.post("/logout")
@@ -632,8 +706,23 @@ async def logout(response: Response) -> dict:
 
     Deletion attributes mirror ``login`` structurally via ``_cookie_attrs()``
     (see the rationale there and #623).
+
+    Also sets a ``dt_logged_out`` marker (non-HttpOnly so the login page can
+    read it) that suppresses automatic XiaoZhi SSO on the next visit — without
+    it, the shared ``mix-token`` cookie would silently log the user back in
+    right after they signed out. The marker is cleared when the user signs in
+    again or explicitly clicks the XiaoZhi sign-in button.
     """
     response.delete_cookie(**_cookie_attrs())
+    response.set_cookie(
+        "dt_logged_out",
+        "1",
+        max_age=30 * 24 * 3600,
+        # Non-HttpOnly: the login page reads it via document.cookie.
+        httponly=False,
+        samesite=_SAMESITE,
+        secure=_SECURE,
+    )
     return {"ok": True}
 
 

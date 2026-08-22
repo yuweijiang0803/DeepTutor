@@ -41,6 +41,18 @@ export default function UtilitySidebar() {
     void refreshSessions();
   }, [refreshSessions]);
 
+  // A new conversation updates the store server-side, but the sidebar only
+  // loads once on mount — re-poll while the tab is visible so recent
+  // conversations appear without a manual reload.
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void refreshSessions();
+      }
+    }, 20_000);
+    return () => clearInterval(id);
+  }, [refreshSessions]);
+
   const handleSelectSession = useCallback(
     async (sessionId: string) => {
       setActiveSessionId(sessionId);

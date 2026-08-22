@@ -136,19 +136,27 @@ def is_first_user() -> bool:
     return len(_load_users()) == 0
 
 
-def add_user(username: str, plain_password: str, role: str = "user") -> None:
+def add_user(
+    username: str,
+    plain_password: str,
+    role: str = "user",
+    nickname: str = "",
+) -> None:
     """
     Add or update a user in data/user/auth_users.json.
 
     The role defaults to 'user'. Pass role='admin' to elevate. When the store
     is empty the first user is automatically promoted to 'admin' regardless of
-    the role argument.
+    the role argument. ``nickname`` is a display name (used by XiaoZhi SSO
+    shadow users); empty keeps whatever is already stored.
 
     Creates the file (and parent directories) if they don't exist.
     """
     from deeptutor.multi_user.identity import save_user
 
-    record = save_user(username, hash_password(plain_password), role=role)  # type: ignore[arg-type]
+    record = save_user(
+        username, hash_password(plain_password), role=role, nickname=nickname  # type: ignore[arg-type]
+    )
     logger.info("User '%s' saved with role=%r", username, record.get("role", "user"))
 
 

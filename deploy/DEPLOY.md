@@ -93,6 +93,8 @@ ssh root@<xiaozhi服务器> "cd /app/xzserver && docker compose exec deeptutor d
 
 ## 三、日常更新
 
+> 详细的分场景更新命令见 **`UPDATE.md`**（同目录），以下为快速索引。
+
 ```bash
 cd /Users/heyuanlin/Documents/guyuai/xiaozhi
 

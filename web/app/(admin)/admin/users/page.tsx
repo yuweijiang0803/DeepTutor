@@ -353,14 +353,14 @@ export default function AdminUsersPage() {
                         <td className="px-5 py-3">
                           <div className="flex items-center gap-3">
                             <UserAvatar
-                              username={user.username}
+                              username={user.nickname || user.username}
                               userId={user.id}
                               avatar={user.avatar}
                               role={user.role}
                               size={32}
                             />
                             <span className="min-w-0 truncate font-medium text-[var(--foreground)]">
-                              {user.username}
+                              {user.nickname || user.username}
                               {isSelf && (
                                 <span className="ml-2 text-xs font-normal text-[var(--muted-foreground)]">
                                   {t("(you)")}
@@ -502,7 +502,7 @@ export default function AdminUsersPage() {
           <>
             <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--background)]/50 px-3 py-2.5">
               <UserAvatar
-                username={confirmTarget.user.username}
+                username={confirmTarget.user.nickname || confirmTarget.user.username}
                 userId={confirmTarget.user.id}
                 avatar={confirmTarget.user.avatar}
                 role={confirmTarget.user.role}
@@ -510,7 +510,7 @@ export default function AdminUsersPage() {
               />
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium text-[var(--foreground)]">
-                  {confirmTarget.user.username}
+                  {confirmTarget.user.nickname || confirmTarget.user.username}
                 </p>
                 <p className="text-xs text-[var(--muted-foreground)]">
                   {t("{{role}} · joined {{date}}", {
