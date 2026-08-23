@@ -36,7 +36,7 @@ fi
 deploy_backend() {
     echo "== [1/1] 同步后端代码 + 重启容器（复用 restart.sh deeptutor）=="
     (cd "$XIAOZHI" && ./restart.sh deeptutor)
-    echo "✅ 后端部署完成（$REMOTE_HOST）"
+    echo "✅ 后端部署完成（${REMOTE_HOST}）"
 }
 
 deploy_frontend() {
@@ -48,7 +48,7 @@ deploy_frontend() {
     ssh "$REMOTE_HOST" "cd /app/xzserver && docker compose up -d --build deeptutor-web"
     echo "== [4/4] reload nginx（容器重建后 IP 变化，刷新 upstream 解析）=="
     ssh "$REMOTE_HOST" "cd /app/xzserver && docker compose exec nginx nginx -s reload"
-    echo "✅ 前端部署完成（$REMOTE_HOST）"
+    echo "✅ 前端部署完成（${REMOTE_HOST}）"
 }
 
 MODE="${1:-all}"

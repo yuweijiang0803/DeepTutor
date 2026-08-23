@@ -118,9 +118,9 @@ def _render_categories(categories: list[dict[str, Any]]) -> str:
 async def _resolve_store(store: Any) -> Any:
     if store is not None:
         return store
-    from deeptutor.services.session import get_sqlite_session_store
+    from deeptutor.services.session import get_session_store
 
-    return get_sqlite_session_store()
+    return get_session_store()
 
 
 async def _overview(store: Any) -> QuestionBankOutcome:

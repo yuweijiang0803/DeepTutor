@@ -380,6 +380,7 @@ from deeptutor.api.routers import (
     tools as tools_router,
 )
 from deeptutor.multi_user.router import router as multi_user_router  # noqa: E402
+from deeptutor.api.routers.roles import router as roles_router  # noqa: E402
 
 # Auth router is public — login/logout/register/status require no token
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
@@ -441,6 +442,12 @@ app.include_router(
     question_notebook.router,
     prefix="/api/v1/question-notebook",
     tags=["question-notebook"],
+    dependencies=_auth,
+)
+app.include_router(
+    roles_router,
+    prefix="/api/v1/roles",
+    tags=["roles"],
     dependencies=_auth,
 )
 # Public UI-settings read (auth pages bootstrap the interface language

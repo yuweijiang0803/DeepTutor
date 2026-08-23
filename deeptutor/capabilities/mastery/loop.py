@@ -91,9 +91,9 @@ def _bind_pending_ask_user_args(kwargs: dict[str, Any], path_id: str) -> dict[st
         return kwargs
     try:
         from deeptutor.learning.pending import public_pending_question
-        from deeptutor.learning.storage import LearningStore
+        from deeptutor.learning.mysql_storage import get_learning_store
 
-        progress = LearningStore().load(path_id)
+        progress = get_learning_store().load(path_id)
         pending = progress.pending_question if progress is not None else None
     except Exception:
         logger.warning("Failed to load pending mastery question for ask_user", exc_info=True)

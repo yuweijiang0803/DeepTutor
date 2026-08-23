@@ -18,6 +18,7 @@ from deeptutor.learning.models import (
     QuizAttempt,
     RetryAttempt,
 )
+from deeptutor.learning.mysql_storage import get_learning_store
 from deeptutor.learning.storage import LearningStore
 
 if TYPE_CHECKING:
@@ -45,7 +46,7 @@ class StaleInteractionError(MasteryInteractionError):
 
 class LearningService:
     def __init__(self, store: LearningStore | None = None) -> None:
-        self._store = store or LearningStore()
+        self._store = store or get_learning_store()
 
     @property
     def store(self) -> LearningStore:

@@ -73,9 +73,9 @@ class MasteryPathCapability(BaseCapability):
         # CLI and SDK calls bypass TurnRuntimeManager, so the capability owns
         # the same path lease for those entry points. Runtime-managed web turns
         # keep their lease until message/event persistence has also completed.
-        from deeptutor.learning.storage import LearningStore
+        from deeptutor.learning.mysql_storage import get_learning_store
 
-        store = LearningStore()
+        store = get_learning_store()
         turn_id = str(context.metadata.get("turn_id") or f"direct-{uuid.uuid4().hex}")
         context.metadata["turn_id"] = turn_id
         await asyncio.to_thread(

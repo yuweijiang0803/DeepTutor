@@ -33,9 +33,11 @@ export interface MarkdownRendererProps {
 function detectMathContent(content: string): boolean {
   if (/(^|[^\\])\$\$/.test(content)) return true;
   if (/\\\(|\\\[/.test(content)) return true;
-  // Single-dollar inline math containing LaTeX commands (\cmd) or math operators ({}_^)
+  // Single-dollar inline math. Besides LaTeX commands and math notation
+  // ({}_^), also match formulas built from common math operators — e.g.
+  // ``$a<0$``, ``$|a|-a=$`` — otherwise they render as literal ``$...$``.
   if (
-    /(?:^|[^$\\])\$(?!\$|\s)(?:[^$\n]*(?:\\[a-zA-Z]+|[{}_^]))[^$\n]*\$(?!\$)/m.test(
+    /(?:^|[^$\\])\$(?!\$|\s)(?:[^$\n]*(?:\\[a-zA-Z]+|[{}_^<>|=\-+/*]))[^$\n]*\$(?!\$)/m.test(
       content,
     )
   )

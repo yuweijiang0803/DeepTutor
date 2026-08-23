@@ -22,6 +22,7 @@ import {
   fallbackAvatarFor,
   UserAvatar,
 } from "@/components/UserAvatar";
+import { RoleSwitcher } from "@/components/auth/RoleSwitcher";
 import { parseAvatarMarker } from "@/lib/avatar";
 import { formatDate, type Language } from "@/lib/datetime";
 
@@ -264,6 +265,7 @@ export default function ProfilePage() {
                       {isAdmin && <ShieldCheck size={11} strokeWidth={2} />}
                       {isAdmin ? t("Administrator") : t("User")}
                     </span>
+                    <RoleSwitcher />
                   </div>
                   {joined && (
                     <p className="mt-1 text-sm text-[var(--muted-foreground)]">

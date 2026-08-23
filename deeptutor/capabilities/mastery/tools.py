@@ -79,9 +79,9 @@ logger = logging.getLogger(__name__)
 
 def _new_service() -> LearningService:
     from deeptutor.learning.service import LearningService
-    from deeptutor.learning.storage import LearningStore
+    from deeptutor.learning.mysql_storage import get_learning_store
 
-    return LearningService(LearningStore())
+    return LearningService(get_learning_store())
 
 
 def _resolve_path_id(kwargs: dict[str, Any]) -> str:
@@ -191,10 +191,10 @@ async def _resolve_pending_choice(
     options = parse_options(list(pending.options or []))
     if not has_option_bodies(options):
         try:
-            from deeptutor.services.session import get_sqlite_session_store
+            from deeptutor.services.session import get_session_store
 
             options = await recover_options_from_turn(
-                get_sqlite_session_store(), turn_id, pending.prompt
+                get_session_store(), turn_id, pending.prompt
             )
         except Exception:
             logger.warning("Failed to recover legacy mastery choice options", exc_info=True)
@@ -229,10 +229,10 @@ async def _sync_mastery_attempt_to_question_bank(
         "is_correct": is_correct,
     }
     try:
-        from deeptutor.services.session import get_sqlite_session_store
+        from deeptutor.services.session import get_session_store
 
         await asyncio.wait_for(
-            get_sqlite_session_store().upsert_notebook_entries(session_id, [item]),
+            get_session_store().upsert_notebook_entries(session_id, [item]),
             timeout=5.0,
         )
     except Exception:

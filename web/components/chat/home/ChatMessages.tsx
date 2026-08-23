@@ -60,6 +60,7 @@ import {
   AskUserOptions,
   extractAskUserPayload,
   extractMessageSegments,
+  splitEventsByAskUser,
 } from "./AskUserOptions";
 import { SetupCredentialCard } from "./SetupCredentialCard";
 import { extractSetupCredential } from "@/lib/setup-signals";
@@ -401,6 +402,13 @@ const AssistantMessage = memo(function AssistantMessage({
     () => (useInlineAskUserSegments ? extractMessageSegments(msg.events) : []),
     [useInlineAskUserSegments, msg.events],
   );
+  // Round-wise split of the event stream at each ask_user card, so a
+  // multi-round mastery turn renders "think → card" per round instead of
+  // piling every round's reasoning at the top of the message.
+  const askUserSegments = useMemo(
+    () => (useInlineAskUserSegments ? splitEventsByAskUser(msg.events) : []),
+    [useInlineAskUserSegments, msg.events],
+  );
   const hasInlineAskUser =
     useInlineAskUserSegments &&
     messageSegments.some((seg) => seg.kind === "ask_user");
@@ -415,13 +423,18 @@ const AssistantMessage = memo(function AssistantMessage({
       {/* Activity block pinned to the TOP: the status header
           ("DeepTutor Exploring… · 8s" → "DeepTutor responded. · 10s") with
           the exploring trace nested beneath it — expanded while DeepTutor is
-          still working, collapsed once it settles into the final answer. */}
-      <AssistantActivity
-        events={events}
-        isStreaming={isStreaming}
-        content={msg.content}
-        className="mb-3"
-      />
+          still working, collapsed once it settles into the final answer.
+          Messages with inline ask_user cards split the trace per round
+          instead (see the hasInlineAskUser branch below), so the single
+          top-pinned block is skipped there. */}
+      {!hasInlineAskUser ? (
+        <AssistantActivity
+          events={events}
+          isStreaming={isStreaming}
+          content={msg.content}
+          className="mb-3"
+        />
+      ) : null}
       {outlinePreview && outlinePreview.sub_topics.length > 0 ? (
         <>
           {/* Layout for the merged research bubble:
@@ -492,28 +505,40 @@ const AssistantMessage = memo(function AssistantMessage({
           />
         </>
       ) : hasInlineAskUser ? (
-        // Default chat surface with one or more ask_user calls: render
-        // text and cards in the exact order they were streamed, so the
-        // pre-ask_user narration sits above the card and the resumed
-        // iteration's text sits below.
-        messageSegments.map((seg) =>
-          seg.kind === "text" ? (
-            <AssistantResponse
-              key={seg.key}
-              content={seg.text}
-              isStreaming={isStreaming}
-            />
-          ) : (
-            <AskUserOptions
-              key={seg.key}
-              data={seg.data}
-              onSubmit={(reply) => {
-                if (!onSubmitUserReply) return;
-                onSubmitUserReply(reply);
-              }}
-            />
-          ),
-        )
+        // Default chat surface with one or more ask_user calls: render each
+        // round as its own "thinking trace → text → card" group (in stream
+        // order), so a multi-round mastery turn does not pile every round's
+        // reasoning at the top of the message.
+        askUserSegments.map((roundEvents, roundIndex) => {
+          const roundSegments = extractMessageSegments(roundEvents);
+          return (
+            <div key={roundIndex} className="space-y-3">
+              <AssistantActivity
+                events={roundEvents}
+                isStreaming={isStreaming}
+                className="mb-1"
+              />
+              {roundSegments.map((seg) =>
+                seg.kind === "text" ? (
+                  <AssistantResponse
+                    key={seg.key}
+                    content={seg.text}
+                    isStreaming={isStreaming}
+                  />
+                ) : (
+                  <AskUserOptions
+                    key={seg.key}
+                    data={seg.data}
+                    onSubmit={(reply) => {
+                      if (!onSubmitUserReply) return;
+                      onSubmitUserReply(reply);
+                    }}
+                  />
+                ),
+              )}
+            </div>
+          );
+        })
       ) : (
         <AssistantResponse content={msg.content} isStreaming={isStreaming} />
       )}

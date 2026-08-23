@@ -53,12 +53,12 @@ async def rebind_active_path(
     target does not exist or is busy in another conversation.
     """
     from deeptutor.learning.storage import (
-        LearningStore,
         PathLeaseConflictError,
     )
+    from deeptutor.learning.mysql_storage import get_learning_store
 
     target = sanitize_mastery_path_id(path_id)
-    store = LearningStore()
+    store = get_learning_store()
     if require_existing and not await asyncio.to_thread(store.exists, target):
         raise PathBindingError(
             f"No mastery path {path_id!r} exists. Call mastery_paths for the "
@@ -101,7 +101,7 @@ async def leave_active_path(
     learner can start something new here without disturbing the course they
     stepped away from.
     """
-    from deeptutor.learning.storage import LearningStore
+    from deeptutor.learning.mysql_storage import get_learning_store
 
     scratch = sanitize_mastery_path_id(session_id or "default")
     resolved = await rebind_active_path(
@@ -116,7 +116,7 @@ async def leave_active_path(
         # unbound mastery turn resolves it, so deleting the conversation takes
         # the scratch path with it instead of leaving an empty orphan behind.
         # Ownership is sticky in the store, so this can only ever add it.
-        await asyncio.to_thread(LearningStore().bind_session, resolved, session_id, owns_path=True)
+        await asyncio.to_thread(get_learning_store().bind_session, resolved, session_id, owns_path=True)
     # Clear the stored association so the next turn resolves the fallback for
     # itself rather than being pinned to a scratch id that may be renamed.
     await _remember_on_session(session_id, "")

@@ -20,7 +20,7 @@ from deeptutor.learning.models import (
     LearningModule,
 )
 from deeptutor.learning.service import LearningService
-from deeptutor.learning.storage import LearningStore
+from deeptutor.learning.mysql_storage import get_learning_store
 from deeptutor.services.settings.interface_settings import get_response_language
 from deeptutor.utils.json_parser import parse_json_response
 
@@ -29,7 +29,7 @@ router = APIRouter()
 
 def get_learning_service() -> LearningService:
     # Create a fresh store + service per request to avoid object-level race conditions.
-    store = LearningStore()
+    store = get_learning_store()
     return LearningService(store)
 
 
@@ -79,7 +79,7 @@ def _validate_runnable_modules(modules: list[LearningModule], *, status_code: in
 async def _cancel_active_learning_turn(book_id: str) -> None:
     from deeptutor.services.session import get_turn_runtime_manager
 
-    learning_store = LearningStore()
+    learning_store = get_learning_store()
     runtime = get_turn_runtime_manager()
     lease = await asyncio.to_thread(learning_store.get_path_lease, book_id)
     if lease is not None:
@@ -113,7 +113,7 @@ async def _exclusive_path_mutation(book_id: str):
     from deeptutor.learning.storage import PathLeaseConflictError
 
     await _cancel_active_learning_turn(book_id)
-    store = LearningStore()
+    store = get_learning_store()
     operation_id = f"api-{uuid.uuid4().hex}"
     try:
         await asyncio.to_thread(
@@ -204,7 +204,7 @@ async def get_objective_report(book_id: str, kp_id: str):
     are joined on here, redacted of their answer keys.
     """
     _validate_book_id(book_id)
-    store = LearningStore()
+    store = get_learning_store()
     progress = await asyncio.to_thread(store.load, book_id)
     if progress is None:
         raise HTTPException(status_code=404, detail="Progress not found")
@@ -228,7 +228,7 @@ async def get_objective_report(book_id: str, kp_id: str):
 async def get_progress_events(book_id: str, after_revision: int = 0):
     """Ordered, redacted domain events for reconnect and incremental UI sync."""
     _validate_book_id(book_id)
-    store = LearningStore()
+    store = get_learning_store()
     progress = await asyncio.to_thread(store.load, book_id)
     if progress is None:
         raise HTTPException(status_code=404, detail="Progress not found")
@@ -247,7 +247,7 @@ async def get_progress_events(book_id: str, after_revision: int = 0):
 async def get_progress_sessions(book_id: str):
     """Expose the explicit conversation associations for this path."""
     _validate_book_id(book_id)
-    store = LearningStore()
+    store = get_learning_store()
     if not await asyncio.to_thread(store.exists, book_id):
         raise HTTPException(status_code=404, detail="Progress not found")
     session_ids = await asyncio.to_thread(store.list_session_ids, book_id)
@@ -306,7 +306,7 @@ async def import_from_book(book_id: str, body: ImportFromBookRequest):
 @router.delete("/progress/{book_id}")
 async def delete_progress(book_id: str):
     _validate_book_id(book_id)
-    store = LearningStore()
+    store = get_learning_store()
     if not await asyncio.to_thread(store.exists, book_id):
         raise HTTPException(status_code=404, detail="Progress not found")
     async with _exclusive_path_mutation(book_id):
@@ -322,7 +322,7 @@ async def skip_pending_question(book_id: str):
     ``redo`` it keeps every mastery level and review the learner has earned.
     """
     _validate_book_id(book_id)
-    store = LearningStore()
+    store = get_learning_store()
     if not await asyncio.to_thread(store.exists, book_id):
         raise HTTPException(status_code=404, detail="Progress not found")
     async with _exclusive_path_mutation(book_id):
@@ -335,7 +335,7 @@ async def skip_pending_question(book_id: str):
 @router.post("/progress/{book_id}/redo")
 async def redo_progress(book_id: str):
     _validate_book_id(book_id)
-    store = LearningStore()
+    store = get_learning_store()
     if not await asyncio.to_thread(store.exists, book_id):
         raise HTTPException(status_code=404, detail="Progress not found")
     async with _exclusive_path_mutation(book_id):

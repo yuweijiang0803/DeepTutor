@@ -185,6 +185,34 @@ export type MessageSegment =
       key: string;
     };
 
+/**
+ * Split a turn's event stream into rounds at each ``ask_user`` tool result.
+ * Each round carries everything up to and including its ask_user card, so a
+ * multi-round mastery turn renders as separate "think → card" groups instead
+ * of one flat pile of reasoning at the top of the message.
+ */
+export function splitEventsByAskUser(events: StreamEvent[] | undefined): StreamEvent[][] {
+  if (!events || events.length === 0) return [];
+  const segments: StreamEvent[][] = [];
+  let current: StreamEvent[] = [];
+  for (const event of events) {
+    current.push(event);
+    const meta = (event.metadata ?? {}) as Record<string, unknown>;
+    const toolMetadata = meta.tool_metadata;
+    const isAskUserResult =
+      event.type === "tool_result" &&
+      toolMetadata &&
+      typeof toolMetadata === "object" &&
+      Boolean((toolMetadata as Record<string, unknown>).ask_user);
+    if (isAskUserResult) {
+      segments.push(current);
+      current = [];
+    }
+  }
+  if (current.length) segments.push(current);
+  return segments;
+}
+
 export function extractMessageSegments(
   events: StreamEvent[] | undefined,
 ): MessageSegment[] {

@@ -70,6 +70,9 @@ def _canonical_record(
         "avatar": str(value.get("avatar") or ""),
         # Display name (XiaoZhi SSO shadow users); must survive the load round-trip.
         "nickname": str(value.get("nickname") or ""),
+        # Current organisational identity (school/clase/role) chosen by the
+        # user in DeepTutor; must survive the load round-trip.
+        "active_role": value.get("active_role") or None,
     }
 
 
@@ -297,6 +300,27 @@ def set_avatar(username: str, avatar: str) -> bool:
         users[username]["avatar"] = avatar
         _write_users(users)
     return True
+
+
+def set_active_role(username: str, active_role: dict | None) -> bool:
+    """Record the user's current organisational identity (school/clase/role)."""
+    if not USERS_FILE.exists():
+        return False
+    with _USERS_WRITE_LOCK:
+        users = load_users()
+        if username not in users:
+            return False
+        users[username]["active_role"] = active_role
+        _write_users(users)
+    return True
+
+
+def get_active_role(username: str) -> dict | None:
+    """Return the user's stored current identity, or None."""
+    users = load_users()
+    record = users.get(username) or {}
+    value = record.get("active_role")
+    return value if isinstance(value, dict) else None
 
 
 # ---------------------------------------------------------------------------

@@ -750,7 +750,7 @@ class TurnRuntimeManager:
         the parked turn is cancelled rather than left to mutate a path it no
         longer owns. Only a turn that is actively generating keeps the lease.
         """
-        from deeptutor.learning.storage import LearningStore
+        from deeptutor.learning.mysql_storage import get_learning_store
 
         leased_turn = await self._fail_orphan_running_turn(await self.store.get_turn(lease.turn_id))
         alive = leased_turn is not None and str(leased_turn.get("status") or "") == "running"
@@ -763,7 +763,7 @@ class TurnRuntimeManager:
         # Scoped to the superseded turn id, so a lease already re-taken by
         # someone else survives.
         await asyncio.to_thread(
-            LearningStore().release_path_lease,
+            get_learning_store().release_path_lease,
             path_id,
             turn_id=lease.turn_id,
         )
@@ -777,9 +777,10 @@ class TurnRuntimeManager:
         owns_path: bool,
     ) -> None:
         """Bind a session to its path and take over from any superseded turn."""
-        from deeptutor.learning.storage import LearningStore, PathLeaseConflictError
+        from deeptutor.learning.storage import PathLeaseConflictError
+        from deeptutor.learning.mysql_storage import get_learning_store
 
-        learning_store = LearningStore()
+        learning_store = get_learning_store()
         await asyncio.to_thread(
             learning_store.bind_session,
             path_id,
@@ -1011,13 +1012,13 @@ class TurnRuntimeManager:
                 # An administrative reset/delete can cancel the placeholder
                 # while lease acquisition is in flight. Never launch a task
                 # after that cancellation has already become durable.
-                from deeptutor.learning.storage import LearningStore
+                from deeptutor.learning.mysql_storage import get_learning_store
 
                 async with self._lock:
                     self._executions.pop(turn["id"], None)
                 with contextlib.suppress(Exception):
                     await asyncio.to_thread(
-                        LearningStore().release_path_lease,
+                        get_learning_store().release_path_lease,
                         mastery_binding.path_id,
                         turn_id=turn["id"],
                     )
@@ -1049,11 +1050,11 @@ class TurnRuntimeManager:
             async with self._lock:
                 self._executions.pop(turn["id"], None)
             if mastery_binding is not None and mastery_lease_acquired:
-                from deeptutor.learning.storage import LearningStore
+                from deeptutor.learning.mysql_storage import get_learning_store
 
                 with contextlib.suppress(Exception):
                     await asyncio.to_thread(
-                        LearningStore().release_path_lease,
+                        get_learning_store().release_path_lease,
                         mastery_binding.path_id,
                         turn_id=turn["id"],
                     )
@@ -2137,7 +2138,7 @@ class TurnRuntimeManager:
             # accumulating on a dead turn.
             self._reply_queues.pop(turn_id, None)
             if capability_name == "mastery_path":
-                from deeptutor.learning.storage import LearningStore
+                from deeptutor.learning.mysql_storage import get_learning_store
 
                 # By turn, not by the path the turn started on: mastery_switch
                 # can move a turn onto a different path mid-flight, and freeing
@@ -2145,7 +2146,7 @@ class TurnRuntimeManager:
                 # leaking the one this turn actually holds.
                 with contextlib.suppress(Exception):
                     await asyncio.shield(
-                        asyncio.to_thread(LearningStore().release_leases_for_turn, turn_id)
+                        asyncio.to_thread(get_learning_store().release_leases_for_turn, turn_id)
                     )
             async with self._lock:
                 current = self._executions.get(turn_id)

@@ -934,6 +934,431 @@ class MySQLSessionStore:
             "parent_message_id": int(parent) if parent is not None else None,
         }
 
+    # ------------------------------------------------------------------
+    # Question bank (notebook_entries) — dt_notebook_entries
+    # ------------------------------------------------------------------
+
+    async def upsert_notebook_entries(self, session_id: str, items: list[dict[str, Any]]) -> int:
+        pool = await get_mysql_pool()
+        user_id = _current_user_id()
+        now = time.time()
+        upserted = 0
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "SELECT id FROM dt_sessions WHERE id=%s AND user_id=%s",
+                    (session_id, user_id),
+                )
+                if not await cur.fetchone():
+                    raise ValueError(f"Session not found: {session_id}")
+                for item in items:
+                    question = (item.get("question") or "").strip()
+                    question_id = (item.get("question_id") or "").strip()
+                    if not question or not question_id:
+                        continue
+                    turn_id = (item.get("turn_id") or "").strip()
+                    images_value = item.get("user_answer_images")
+                    images_json = (
+                        _json_dumps(images_value) if isinstance(images_value, list) else None
+                    )
+                    await cur.execute(
+                        """SELECT id FROM dt_notebook_entries
+                           WHERE user_id=%s AND session_id=%s AND turn_id=%s AND question_id=%s""",
+                        (user_id, session_id, turn_id, question_id),
+                    )
+                    existing = await cur.fetchone()
+                    if existing:
+                        set_clause = "user_answer=%s, is_correct=%s, updated_at=%s"
+                        params: list[Any] = [
+                            item.get("user_answer") or "",
+                            1 if item.get("is_correct") else 0,
+                            now,
+                        ]
+                        if images_json is not None:
+                            set_clause += ", user_answer_images_json=%s"
+                            params.append(images_json)
+                        params.append(existing["id"])
+                        await cur.execute(
+                            f"UPDATE dt_notebook_entries SET {set_clause} WHERE id=%s", params
+                        )
+                    else:
+                        await cur.execute(
+                            """INSERT INTO dt_notebook_entries (
+                                user_id, session_id, turn_id, question_id, question, question_type,
+                                options_json, correct_answer, explanation, difficulty,
+                                user_answer, user_answer_images_json, is_correct, bookmarked,
+                                followup_session_id, created_at, updated_at
+                            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,0,%s,%s,%s)""",
+                            (
+                                user_id,
+                                session_id,
+                                turn_id,
+                                question_id,
+                                question,
+                                item.get("question_type") or "",
+                                _json_dumps(item.get("options") or {}),
+                                item.get("correct_answer") or "",
+                                item.get("explanation") or "",
+                                item.get("difficulty") or "",
+                                item.get("user_answer") or "",
+                                images_json or "[]",
+                                1 if item.get("is_correct") else 0,
+                                item.get("followup_session_id") or "",
+                                now,
+                                now,
+                            ),
+                        )
+                    upserted += 1
+            await conn.commit()
+        return upserted
+
+    @staticmethod
+    def _serialize_notebook_entry(row: dict[str, Any]) -> dict[str, Any]:
+        images: list[dict[str, Any]] = []
+        raw_images = _json_loads(row.get("user_answer_images_json"), [])
+        if isinstance(raw_images, list):
+            images = [r for r in raw_images if isinstance(r, dict)]
+        return {
+            "id": int(row["id"]),
+            "session_id": row.get("session_id") or "",
+            "session_title": row.get("session_title") or "",
+            "turn_id": row.get("turn_id") or "",
+            "question_id": row.get("question_id") or "",
+            "question": row.get("question") or "",
+            "question_type": row.get("question_type") or "",
+            "options": _json_loads(row.get("options_json"), {}),
+            "correct_answer": row.get("correct_answer") or "",
+            "explanation": row.get("explanation") or "",
+            "difficulty": row.get("difficulty") or "",
+            "user_answer": row.get("user_answer") or "",
+            "user_answer_images": images,
+            "is_correct": bool(row.get("is_correct")),
+            "bookmarked": bool(row.get("bookmarked")),
+            "followup_session_id": row.get("followup_session_id") or "",
+            "ai_judgment": row.get("ai_judgment") or "",
+            "image_refs": _json_loads(row.get("image_refs"), []),
+            "knowledge_point": row.get("knowledge_point") or "",
+            "created_at": row.get("created_at"),
+            "updated_at": row.get("updated_at"),
+        }
+
+    async def list_notebook_entries(
+        self,
+        category_id: int | None = None,
+        bookmarked: bool | None = None,
+        is_correct: bool | None = None,
+        limit: int = 50,
+        offset: int = 0,
+        *,
+        uncategorized: bool = False,
+        search: str = "",
+        sort: str = "newest",
+        session_id: str | None = None,
+    ) -> dict[str, Any]:
+        pool = await get_mysql_pool()
+        user_id = _current_user_id()
+        conditions: list[str] = ["n.user_id = %s"]
+        params: list[Any] = [user_id]
+        if category_id is not None:
+            conditions.append("EXISTS (SELECT 1 FROM dt_notebook_entry_categories ec WHERE ec.entry_id = n.id AND ec.category_id = %s)")
+            params.append(category_id)
+        elif uncategorized:
+            conditions.append("NOT EXISTS (SELECT 1 FROM dt_notebook_entry_categories ec WHERE ec.entry_id = n.id)")
+        if bookmarked is not None:
+            conditions.append("n.bookmarked = %s")
+            params.append(1 if bookmarked else 0)
+        if is_correct is not None:
+            conditions.append("n.is_correct = %s")
+            params.append(1 if is_correct else 0)
+        if session_id:
+            conditions.append("n.session_id = %s")
+            params.append(session_id)
+        if search:
+            needle = f"%{search}%"
+            conditions.append("(n.question LIKE %s OR n.user_answer LIKE %s OR n.correct_answer LIKE %s OR n.explanation LIKE %s)")
+            params.extend([needle] * 4)
+        where = " WHERE " + " AND ".join(conditions)
+        order = "ASC" if sort == "oldest" else "DESC"
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    f"""SELECT COUNT(*) AS cnt FROM dt_notebook_entries n{where}""", params
+                )
+                total_row = await cur.fetchone()
+                total = int(total_row["cnt"]) if total_row else 0
+                await cur.execute(
+                    f"""SELECT n.*, COALESCE(s.title, '') AS session_title
+                        FROM dt_notebook_entries n
+                        LEFT JOIN dt_sessions s ON s.id = n.session_id
+                        {where} ORDER BY n.created_at {order}, n.id {order} LIMIT %s OFFSET %s""",
+                    params + [int(limit), int(offset)],
+                )
+                rows = await cur.fetchall()
+                items = [self._serialize_notebook_entry(r) for r in rows]
+                ids = [int(i["id"]) for i in items]
+                categories = await self._load_categories_for(conn, ids, user_id)
+        for item in items:
+            item["categories"] = categories.get(int(item["id"]), [])
+        return {"items": items, "total": total}
+
+    async def _load_categories_for(
+        self, conn, entry_ids: list[int], user_id: str
+    ) -> dict[int, list[dict[str, Any]]]:
+        if not entry_ids:
+            return {}
+        placeholders = ",".join(["%s"] * len(entry_ids))
+        async with conn.cursor() as cur:
+            await cur.execute(
+                f"""SELECT ec.entry_id, c.id, c.name
+                    FROM dt_notebook_entry_categories ec
+                    INNER JOIN dt_notebook_categories c ON c.id = ec.category_id
+                    WHERE ec.entry_id IN ({placeholders}) ORDER BY c.name""",
+                entry_ids,
+            )
+            rows = await cur.fetchall()
+        grouped: dict[int, list[dict[str, Any]]] = {}
+        for row in rows:
+            grouped.setdefault(int(row["entry_id"]), []).append(
+                {"id": row["id"], "name": row["name"]}
+            )
+        return grouped
+
+    async def question_bank_stats(self) -> dict[str, int]:
+        pool = await get_mysql_pool()
+        user_id = _current_user_id()
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    """SELECT
+                        COUNT(*) AS total,
+                        COALESCE(SUM(is_correct = 0), 0) AS wrong,
+                        COALESCE(SUM(bookmarked = 1), 0) AS bookmarked,
+                        (SELECT COUNT(*) FROM dt_notebook_entries n
+                         WHERE n.user_id = %s AND NOT EXISTS (
+                           SELECT 1 FROM dt_notebook_entry_categories ec WHERE ec.entry_id = n.id
+                         )) AS uncategorized
+                      FROM dt_notebook_entries WHERE user_id = %s""",
+                    (user_id, user_id),
+                )
+                row = await cur.fetchone()
+        return {
+            "total": int(row["total"] or 0),
+            "wrong": int(row["wrong"] or 0),
+            "bookmarked": int(row["bookmarked"] or 0),
+            "uncategorized": int(row["uncategorized"] or 0),
+        }
+
+    async def has_question_bank_entries(self) -> bool:
+        pool = await get_mysql_pool()
+        user_id = _current_user_id()
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "SELECT 1 FROM dt_notebook_entries WHERE user_id=%s LIMIT 1", (user_id,)
+                )
+                return await cur.fetchone() is not None
+
+    async def get_notebook_entry(self, entry_id: int) -> dict[str, Any] | None:
+        pool = await get_mysql_pool()
+        user_id = _current_user_id()
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    """SELECT n.*, COALESCE(s.title, '') AS session_title
+                       FROM dt_notebook_entries n
+                       LEFT JOIN dt_sessions s ON s.id = n.session_id
+                       WHERE n.id=%s AND n.user_id=%s""",
+                    (entry_id, user_id),
+                )
+                row = await cur.fetchone()
+                if row is None:
+                    return None
+                item = self._serialize_notebook_entry(row)
+                item["categories"] = (await self._load_categories_for(conn, [entry_id], user_id)).get(entry_id, [])
+                return item
+
+    async def find_notebook_entry(
+        self, question_id: str, session_id: str | None = None
+    ) -> dict[str, Any] | None:
+        pool = await get_mysql_pool()
+        user_id = _current_user_id()
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                if session_id:
+                    await cur.execute(
+                        "SELECT * FROM dt_notebook_entries WHERE user_id=%s AND question_id=%s AND session_id=%s LIMIT 1",
+                        (user_id, question_id, session_id),
+                    )
+                else:
+                    await cur.execute(
+                        "SELECT * FROM dt_notebook_entries WHERE user_id=%s AND question_id=%s LIMIT 1",
+                        (user_id, question_id),
+                    )
+                row = await cur.fetchone()
+                return self._serialize_notebook_entry(row) if row else None
+
+    async def update_notebook_entry(self, entry_id: int, updates: dict[str, Any]) -> bool:
+        pool = await get_mysql_pool()
+        user_id = _current_user_id()
+        allowed = {
+            "user_answer", "user_answer_images_json", "is_correct", "bookmarked",
+            "ai_judgment", "explanation", "knowledge_point",
+        }
+        cols = {k: v for k, v in updates.items() if k in allowed}
+        if not cols:
+            return False
+        cols["updated_at"] = time.time()
+        set_sql = ", ".join(f"{k}=%s" for k in cols)
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    f"UPDATE dt_notebook_entries SET {set_sql} WHERE id=%s AND user_id=%s",
+                    list(cols.values()) + [entry_id, user_id],
+                )
+                changed = cur.rowcount > 0
+            await conn.commit()
+        return changed
+
+    async def delete_notebook_entry(self, entry_id: int) -> bool:
+        pool = await get_mysql_pool()
+        user_id = _current_user_id()
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "DELETE FROM dt_notebook_entry_categories WHERE entry_id=%s", (entry_id,)
+                )
+                await cur.execute(
+                    "DELETE FROM dt_notebook_entries WHERE id=%s AND user_id=%s",
+                    (entry_id, user_id),
+                )
+                changed = cur.rowcount > 0
+            await conn.commit()
+        return changed
+
+    # ------------------------------------------------------------------
+    # Question bank categories
+    # ------------------------------------------------------------------
+
+    async def create_category(self, name: str) -> dict[str, Any]:
+        pool = await get_mysql_pool()
+        user_id = _current_user_id()
+        now = time.time()
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "INSERT INTO dt_notebook_categories (user_id, name, created_at) VALUES (%s,%s,%s)",
+                    (user_id, name, now),
+                )
+                category_id = cur.lastrowid
+            await conn.commit()
+        return {"id": category_id, "name": name}
+
+    async def rename_category(self, category_id: int, name: str) -> bool:
+        pool = await get_mysql_pool()
+        user_id = _current_user_id()
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "UPDATE dt_notebook_categories SET name=%s WHERE id=%s AND user_id=%s",
+                    (name, category_id, user_id),
+                )
+                changed = cur.rowcount > 0
+            await conn.commit()
+        return changed
+
+    async def delete_category(self, category_id: int) -> bool:
+        pool = await get_mysql_pool()
+        user_id = _current_user_id()
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "DELETE FROM dt_notebook_entry_categories WHERE category_id=%s", (category_id,)
+                )
+                await cur.execute(
+                    "DELETE FROM dt_notebook_categories WHERE id=%s AND user_id=%s",
+                    (category_id, user_id),
+                )
+                changed = cur.rowcount > 0
+            await conn.commit()
+        return changed
+
+    async def list_categories(self) -> list[dict[str, Any]]:
+        pool = await get_mysql_pool()
+        user_id = _current_user_id()
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    """SELECT c.id, c.name, COUNT(ec.entry_id) AS entry_count
+                       FROM dt_notebook_categories c
+                       LEFT JOIN dt_notebook_entry_categories ec ON ec.category_id = c.id
+                       WHERE c.user_id = %s
+                       GROUP BY c.id, c.name ORDER BY c.name""",
+                    (user_id,),
+                )
+                rows = await cur.fetchall()
+        return [
+            {"id": int(r["id"]), "name": r["name"], "entry_count": int(r["entry_count"] or 0)}
+            for r in rows
+        ]
+
+    async def find_category_by_name(self, name: str) -> dict[str, Any] | None:
+        pool = await get_mysql_pool()
+        user_id = _current_user_id()
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "SELECT * FROM dt_notebook_categories WHERE user_id=%s AND LOWER(name)=LOWER(%s) LIMIT 1",
+                    (user_id, name),
+                )
+                row = await cur.fetchone()
+                return {"id": int(row["id"]), "name": row["name"]} if row else None
+
+    async def add_entry_to_category(self, entry_id: int, category_id: int) -> bool:
+        return await self.link_entries_to_category([entry_id], category_id, link=True) > 0
+
+    async def remove_entry_from_category(self, entry_id: int, category_id: int) -> bool:
+        pool = await get_mysql_pool()
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "DELETE FROM dt_notebook_entry_categories WHERE entry_id=%s AND category_id=%s",
+                    (entry_id, category_id),
+                )
+                changed = cur.rowcount > 0
+            await conn.commit()
+        return changed
+
+    async def link_entries_to_category(
+        self, entry_ids: list[int], category_id: int, *, link: bool = True
+    ) -> int:
+        pool = await get_mysql_pool()
+        user_id = _current_user_id()
+        changed = 0
+        async with pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                # Only operate on the user's own entries.
+                ph = ",".join(["%s"] * len(entry_ids))
+                await cur.execute(
+                    f"SELECT id FROM dt_notebook_entries WHERE user_id=%s AND id IN ({ph})",
+                    [user_id, *entry_ids],
+                )
+                owned = {int(r["id"]) for r in await cur.fetchall()}
+                for entry_id in owned:
+                    if link:
+                        await cur.execute(
+                            "INSERT IGNORE INTO dt_notebook_entry_categories (entry_id, category_id) VALUES (%s,%s)",
+                            (entry_id, category_id),
+                        )
+                        changed += cur.rowcount
+                    else:
+                        await cur.execute(
+                            "DELETE FROM dt_notebook_entry_categories WHERE entry_id=%s AND category_id=%s",
+                            (entry_id, category_id),
+                        )
+                        changed += cur.rowcount
+            await conn.commit()
+        return changed
+
 
 # ---------------------------------------------------------------------------
 # Public factory (matches sqlite_store.get_sqlite_session_store naming)

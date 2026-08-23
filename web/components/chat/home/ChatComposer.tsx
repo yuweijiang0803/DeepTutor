@@ -142,7 +142,7 @@ function CapMenuItem({
  * turn — send, working, stop — rather than two buttons that swap places at
  * the moment of the click. These are its four states; only the skin changes.
  */
-type SendState = "idle" | "blocked" | "ready" | "streaming";
+type SendState = "idle" | "blocked" | "ready" | "streaming" | "awaiting";
 
 /**
  * `idle` keeps a legible glyph on a hairline ring instead of fading the whole
@@ -159,6 +159,11 @@ type SendState = "idle" | "blocked" | "ready" | "streaming";
  */
 const SEND_STATE_CLASS: Record<SendState, string> = {
   idle: "cursor-default text-[var(--muted-foreground)] ring-1 ring-inset ring-[var(--border)]",
+  // `awaiting` = the turn is paused on an ask_user card; the composer is not
+  // "generating", so no spinning ring — the send affordance reads as disabled
+  // until the card is answered.
+  awaiting:
+    "cursor-default text-[var(--muted-foreground)] ring-1 ring-inset ring-[var(--border)]",
   // The glyph goes to `--foreground`, not `--primary-foreground`: this fill is
   // a wash of `--muted-foreground` and therefore sits near the background, so
   // only the foreground colour is guaranteed to read against it on all four
@@ -208,6 +213,7 @@ export default memo(function ChatComposer({
   selectedMemoryFiles,
   selectedKnowledgeBases,
   isStreaming,
+  awaitingAskUser = false,
   isVisualizeMode,
   capabilityNeedsConfig,
   capabilityConfigConfirmed,
@@ -298,6 +304,12 @@ export default memo(function ChatComposer({
   selectedMemoryFiles: SpaceMemoryFile[];
   selectedKnowledgeBases: string[];
   isStreaming: boolean;
+  /**
+   * True when the active turn is paused on an ask_user card (the tutor is
+   * waiting for the learner's answer). The composer is not generating — the
+   * send affordance should read as idle/awaiting, not spinning.
+   */
+  awaitingAskUser?: boolean;
   isVisualizeMode: boolean;
   /**
    * True when the active capability (e.g. Quiz / Visualize / Research)
@@ -517,13 +529,15 @@ export default memo(function ChatComposer({
   // `idle` so an empty composer doesn't present a live send affordance. That
   // makes intent — not `canSend` — the thing that decides interactivity, so
   // the `blocked` state can stay clickable and surface the config card.
-  const sendState: SendState = isStreaming
-    ? "streaming"
-    : !hasIntent
-      ? "idle"
-      : isConfigBlocked
-        ? "blocked"
-        : "ready";
+  const sendState: SendState = awaitingAskUser
+    ? "awaiting"
+    : isStreaming
+      ? "streaming"
+      : !hasIntent
+        ? "idle"
+        : isConfigBlocked
+          ? "blocked"
+          : "ready";
 
   const spaceSelectionCounts: SpaceSelectionCounts = {
     attachments: attachments.length,
@@ -647,7 +661,11 @@ export default memo(function ChatComposer({
   }, [handleManualSend, isStreaming, onCancelStreaming]);
 
   const sendLabel =
-    sendState === "streaming" ? t("Stop generating") : t("Send");
+    sendState === "streaming"
+      ? t("Stop generating")
+      : sendState === "awaiting"
+        ? t("Answer the question card above")
+        : t("Send");
   const sendTitle =
     sendState === "blocked"
       ? t("Confirm settings on the right to send.")
@@ -1123,7 +1141,7 @@ export default memo(function ChatComposer({
                 <button
                   type="button"
                   onClick={handleSendButtonClick}
-                  disabled={sendState === "idle"}
+                  disabled={sendState === "idle" || sendState === "awaiting"}
                   className={`group relative ml-1 inline-grid h-8 w-8 shrink-0 place-items-center rounded-full transition-[background-color,box-shadow,transform] duration-200 active:scale-95 ${SEND_STATE_CLASS[sendState]}`}
                   aria-label={sendLabel}
                   title={sendTitle}

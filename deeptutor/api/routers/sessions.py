@@ -11,7 +11,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator
 
-from deeptutor.learning.storage import LearningStore
+from deeptutor.learning.mysql_storage import get_learning_store
 from deeptutor.services.session import get_session_store, get_sqlite_session_store
 from deeptutor.services.storage.attachment_store import get_attachment_store
 
@@ -166,7 +166,7 @@ async def delete_session(session_id: str):
     if not deleted:
         raise HTTPException(status_code=404, detail="Session not found")
     try:
-        await asyncio.to_thread(LearningStore().detach_session, session_id)
+        await asyncio.to_thread(get_learning_store().detach_session, session_id)
     except Exception:
         logger.exception("failed to detach mastery paths for session %s", session_id)
     try:

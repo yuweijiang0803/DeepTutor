@@ -25,7 +25,9 @@ from . import register_provider
 
 _SOURCES = ("search_engine", "toutiao", "douyin", "moji")
 # Ark pins model ids to a dated release; override via the `model` kwarg.
-_DEFAULT_MODEL = "doubao-seed-1-6-251015"
+# `doubao-seed-2-0-lite-260428` supports the built-in web_search tool and is
+# the model the deployment's LLM profile already has access to.
+_DEFAULT_MODEL = "doubao-seed-2-0-lite-260428"
 
 
 @register_provider("doubao")
