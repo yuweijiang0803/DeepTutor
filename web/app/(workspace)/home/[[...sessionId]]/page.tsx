@@ -81,7 +81,7 @@ import {
 import { classifyFile, isSvgFilename } from "@/lib/doc-attachments";
 import { readChatLaunchIntent } from "@/lib/chat-launch-intent";
 import { useAttachmentLimits } from "@/lib/attachment-limits";
-import { hasPendingAskUserInMessages } from "@/lib/ask-user-state";
+import { hasPendingAskUser } from "@/lib/ask-user-state";
 import { useChatAutoScroll } from "@/hooks/useChatAutoScroll";
 import { useMeasuredHeight } from "@/hooks/useMeasuredHeight";
 import { useSetupSync } from "@/hooks/useSetupSync";
@@ -792,9 +792,6 @@ export default function ChatPage() {
   // "done" while nothing visibly changes.
   useSetupSync(state.messages);
   const hasMessages = state.messages.length > 0;
-  // True when the active turn is paused on an ask_user card — the tutor is
-  // waiting for the learner to answer, so the composer must not spin.
-  const awaitingAskUser = hasPendingAskUserInMessages(state.messages);
   // Time-of-day greeting: seeded once on mount from the user's local clock so
   // the heading stays stable while they're on the page. State (not useMemo)
   // because the random pick would otherwise mismatch SSR ↔ client hydration.
@@ -2474,7 +2471,6 @@ export default function ChatPage() {
                 selectedMemoryFiles={selectedMemoryFiles}
                 selectedKnowledgeBases={selectedKbOnly}
                 isStreaming={state.isStreaming}
-                awaitingAskUser={awaitingAskUser}
                 isVisualizeMode={isVisualizeMode}
                 capabilityNeedsConfig={capabilityNeedsConfig}
                 capabilityConfigConfirmed={capabilityConfigConfirmed}
