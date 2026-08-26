@@ -15,6 +15,7 @@ import {
   BarChart3,
   BookOpenText,
   BrainCircuit,
+  CircleHelp,
   Clapperboard,
   Code2,
   Compass,
@@ -122,6 +123,10 @@ import {
   selectedBooksToPayload,
   type SelectedBookReference,
 } from "@/lib/book-references";
+import {
+  normalizeSelectedText,
+  type SelectionTutorContext,
+} from "@/lib/selection-tutor";
 
 const NotebookRecordPicker = dynamic(
   () => import("@/components/notebook/NotebookRecordPicker"),
@@ -167,7 +172,9 @@ const SaveToNotebookModal = dynamic(
 // don't need a form (Chat / Solve) don't ship the form JS.
 const CapabilityConfigCard = dynamic(
   () => import("@/components/chat/home/CapabilityConfigCard"),
-  { ssr: false },
+  {
+    ssr: false,
+  },
 );
 const QuizConfigPanel = dynamic(
   () => import("@/components/quiz/QuizConfigPanel"),
@@ -175,11 +182,15 @@ const QuizConfigPanel = dynamic(
 );
 const VisualizeConfigPanel = dynamic(
   () => import("@/components/visualize/VisualizeConfigPanel"),
-  { ssr: false },
+  {
+    ssr: false,
+  },
 );
 const ResearchConfigPanel = dynamic(
   () => import("@/components/research/ResearchConfigPanel"),
-  { ssr: false },
+  {
+    ssr: false,
+  },
 );
 
 /* ------------------------------------------------------------------ */
@@ -258,6 +269,23 @@ const CAPABILITIES: CapabilityDef[] = [
     allowedTools: ["web_search", "code_execution", "reason"],
     defaultTools: ["web_search", "code_execution", "reason"],
     secondary: true,
+  },
+  {
+    value: "ask_questions",
+    label: "Ask Questions",
+    description: "Let the model ask you questions to fill in missing context",
+    icon: CircleHelp,
+    allowedTools: [
+      "brainstorm",
+      "geogebra_analysis",
+      "web_search",
+      "code_execution",
+      "reason",
+      "paper_search",
+      "imagegen",
+      "videogen",
+    ],
+    defaultTools: [],
   },
   {
     value: "deep_question",
@@ -418,6 +446,15 @@ export default function ChatPage() {
         ? null
         : new URLSearchParams(window.location.search).get("agent");
   }
+  // A course-page "New course chat" link carries the destination only until
+  // the first turn creates its durable session. Consume it once so later
+  // messages cannot undo an explicit move made from the sidebar.
+  const pendingCourseRef = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    pendingCourseRef.current = new URLSearchParams(window.location.search).get(
+      "course",
+    );
+  }, []);
   const agentPreselectDoneRef = useRef(false);
   const {
     options: llmOptions,
@@ -451,6 +488,14 @@ export default function ChatPage() {
   // Single right-side panel: the Activity/Viewer. Its home view is the
   // session activity; files and web pages open as tabs alongside it.
   const [viewerPanelOpen, setViewerPanelOpen] = useState(false);
+  const [selectionTutorPrompt, setSelectionTutorPrompt] = useState<{
+    text: string;
+    sourceMessageId: number;
+    sourceMessageText: string;
+    sourceMessageRole: SelectionTutorContext["sourceMessageRole"];
+    left: number;
+    top: number;
+  } | null>(null);
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (window.localStorage.getItem("dt:chat:viewer-panel") === "1") {
@@ -1037,6 +1082,25 @@ export default function ChatPage() {
     scrollToBottom("instant");
   }, [scrollToBottom, shouldAutoScrollRef]);
 
+  /* A card waiting on the user is the one thing that MUST be on screen: the
+     turn cannot continue until they act on it. Reading the question that
+     precedes it normally scrolls up, which releases the streaming pin — so a
+     quiz card would appear below the fold, under the composer, and the
+     conversation looked stalled. Re-arm the pin and land on the card. */
+  const awaitingUserReply = hasPendingAskUser(lastMessage?.events);
+  // Read inside ``handleSend`` without adding a dependency that would rebuild
+  // the callback (and so the composer) on every streamed event.
+  const awaitingUserReplyRef = useRef(awaitingUserReply);
+  awaitingUserReplyRef.current = awaitingUserReply;
+  useEffect(() => {
+    if (!awaitingUserReply) return;
+    shouldAutoScrollRef.current = true;
+    // One frame later: the card has to be laid out before the bottom it
+    // defines exists.
+    const frame = requestAnimationFrame(() => scrollToBottom("instant"));
+    return () => cancelAnimationFrame(frame);
+  }, [awaitingUserReply, scrollToBottom, shouldAutoScrollRef]);
+
   const copyAssistantMessage = useCallback(async (content: string) => {
     if (!content.trim()) return;
     try {
@@ -1617,6 +1681,91 @@ export default function ChatPage() {
     viewerPanelRef.current?.openWebTab(href);
   }, []);
 
+  const handleMessagesSelection = useCallback(() => {
+    const container = messagesContainerRef.current;
+    const selection = window.getSelection();
+    if (
+      !container ||
+      !selection ||
+      selection.isCollapsed ||
+      !selection.rangeCount
+    ) {
+      setSelectionTutorPrompt(null);
+      return;
+    }
+    const range = selection.getRangeAt(0);
+    if (!container.contains(range.commonAncestorContainer)) {
+      setSelectionTutorPrompt(null);
+      return;
+    }
+    const text = normalizeSelectedText(selection.toString());
+    if (text.length < 2) {
+      setSelectionTutorPrompt(null);
+      return;
+    }
+
+    const messageElementForNode = (node: Node | null): HTMLElement | null => {
+      const element =
+        node instanceof HTMLElement ? node : node?.parentElement ?? null;
+      return element?.closest<HTMLElement>("[data-chat-message-id]") ?? null;
+    };
+    const anchorMessage = messageElementForNode(selection.anchorNode);
+    const focusMessage = messageElementForNode(selection.focusNode);
+    if (!anchorMessage || anchorMessage !== focusMessage) {
+      setSelectionTutorPrompt(null);
+      return;
+    }
+    const sourceMessageId = Number(anchorMessage.dataset.chatMessageId);
+    const sourceMessage = state.messages.find(
+      (message) => message.id === sourceMessageId,
+    );
+    if (!Number.isInteger(sourceMessageId) || !sourceMessage) {
+      setSelectionTutorPrompt(null);
+      return;
+    }
+
+    const rects = range.getClientRects();
+    const rect =
+      rects.length > 0
+        ? rects[rects.length - 1]
+        : range.getBoundingClientRect();
+    const buttonWidth = 118;
+    const buttonHeight = 38;
+    const left = Math.max(
+      12,
+      Math.min(rect.right - buttonWidth, window.innerWidth - buttonWidth - 12),
+    );
+    const below = rect.bottom + 8;
+    const top =
+      below + buttonHeight <= window.innerHeight - 12
+        ? below
+        : Math.max(12, rect.top - buttonHeight - 8);
+    setSelectionTutorPrompt({
+      text,
+      sourceMessageId,
+      sourceMessageText: sourceMessage.content,
+      sourceMessageRole: sourceMessage.role,
+      left,
+      top,
+    });
+  }, [messagesContainerRef, state.messages]);
+
+  const openSelectionTutor = useCallback(() => {
+    if (!selectionTutorPrompt) return;
+    viewerPanelRef.current?.openSelectionTutorTab(
+      {
+        selectedText: selectionTutorPrompt.text,
+        parentSessionId: state.sessionId,
+        sourceMessageId: selectionTutorPrompt.sourceMessageId,
+        sourceMessageText: selectionTutorPrompt.sourceMessageText,
+        sourceMessageRole: selectionTutorPrompt.sourceMessageRole,
+      },
+      state.language,
+    );
+    setSelectionTutorPrompt(null);
+    window.getSelection()?.removeAllRanges();
+  }, [selectionTutorPrompt, state.language, state.sessionId]);
+
   const handleClosePreview = useCallback(() => {
     setPreviewSource(null);
   }, []);
@@ -1691,6 +1840,14 @@ export default function ChatPage() {
 
   const handleSend = useCallback(
     async (content: string) => {
+      // A turn paused on a question: what the user typed is their answer, not
+      // a new message. Routing it here means the card is one way to answer,
+      // not the only one — and a card that never rendered no longer strands
+      // the learner with a turn they can only cancel.
+      if (awaitingUserReplyRef.current) {
+        if (content.trim()) submitUserReply({ text: content });
+        return;
+      }
       if (
         (!content &&
           !attachments.length &&
@@ -1738,6 +1895,10 @@ export default function ChatPage() {
       if (selectedAgent && subagentBudget) {
         config = { ...(config ?? {}), subagent_consult_budget: subagentBudget };
       }
+      const launchCourseId = pendingCourseRef.current?.trim();
+      if (launchCourseId) {
+        config = { ...(config ?? {}), _course_id: launchCourseId };
+      }
 
       const memoryPayload = [...memoryReferencesPayload];
       const messageContent =
@@ -1767,6 +1928,7 @@ export default function ChatPage() {
         undefined,
         memoryPayload,
       );
+      pendingCourseRef.current = null;
       shouldAutoScrollRef.current = true;
       setAttachments([]);
       setSelectedBookReferences([]);
@@ -1801,6 +1963,7 @@ export default function ChatPage() {
       shouldAutoScrollRef,
       state.isStreaming,
       subagentBudget,
+      submitUserReply,
       t,
       visualizeConfig,
     ],
@@ -2177,8 +2340,13 @@ export default function ChatPage() {
                   <div
                     ref={messagesContainerRef}
                     data-chat-scroll-root="true"
-                    onScroll={handleMessagesScroll}
+                    onScroll={() => {
+                      setSelectionTutorPrompt(null);
+                      handleMessagesScroll();
+                    }}
                     onClick={handleMessagesClick}
+                    onMouseUp={handleMessagesSelection}
+                    onKeyUp={handleMessagesSelection}
                     // `both-edges` reserves the scrollbar gutter on both sides so
                     // the inner mx-auto column centers on the same axis as the
                     // header and composer (siblings outside this scrollport) on
@@ -2234,6 +2402,22 @@ export default function ChatPage() {
                       />
                     </div>
                   </div>
+                  {selectionTutorPrompt ? (
+                    <button
+                      type="button"
+                      onPointerDown={(event) => event.preventDefault()}
+                      onClick={openSelectionTutor}
+                      aria-label={t("Ask Little Tutor")}
+                      className="fixed z-[45] inline-flex h-[38px] items-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--foreground)] px-3 text-[12px] font-medium text-[var(--background)] shadow-lg transition-transform hover:-translate-y-0.5"
+                      style={{
+                        left: selectionTutorPrompt.left,
+                        top: selectionTutorPrompt.top,
+                      }}
+                    >
+                      <GraduationCap size={15} strokeWidth={1.8} />
+                      {t("Ask Little Tutor")}
+                    </button>
+                  ) : null}
                   <TurnNavigator
                     entries={chatOutline}
                     scrollRootRef={messagesContainerRef}
@@ -2314,6 +2498,7 @@ export default function ChatPage() {
                 onPersonaSelectorOpenChange={setPersonaSelectorOpen}
                 onToggleMemoryFile={handleToggleMemoryFile}
                 onSend={handleSend}
+                awaitingUserReply={awaitingUserReply}
                 onRemoveAttachment={removeAttachment}
                 onPreviewAttachment={handlePreviewPendingAttachment}
                 onRemoveHistory={handleRemoveHistory}

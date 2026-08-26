@@ -60,14 +60,14 @@ import {
   AskUserOptions,
   extractAskUserPayload,
   extractMessageSegments,
-  splitEventsByAskUser,
+  leadingTraceEvents,
 } from "./AskUserOptions";
 import { SetupCredentialCard } from "./SetupCredentialCard";
 import { extractSetupCredential } from "@/lib/setup-signals";
 import ContextReferenceTree, {
   type ContextTreeItem,
 } from "./ContextReferenceTree";
-import { AssistantActivity } from "./TracePanels";
+import { AssistantActivity, NestedTraceFlow } from "./TracePanels";
 import { agentGlyph } from "@/components/agents/agent-icons";
 import { useConnectedAgentKinds } from "@/hooks/useConnectedAgentKinds";
 
@@ -110,6 +110,7 @@ interface NotebookReferenceGroup {
 // the same wording the bubble carries.
 export function getModeBadgeLabel(capability?: string | null): string {
   if (!capability || capability === "chat") return "Chat";
+  if (capability === "ask_questions") return "Ask Questions";
   if (capability === "deep_solve") return "Deep Solve";
   if (capability === "deep_question") return "Quiz Generation";
   if (capability === "deep_research") return "Deep Research";
@@ -402,16 +403,23 @@ const AssistantMessage = memo(function AssistantMessage({
     () => (useInlineAskUserSegments ? extractMessageSegments(msg.events) : []),
     [useInlineAskUserSegments, msg.events],
   );
-  // Round-wise split of the event stream at each ask_user card, so a
-  // multi-round mastery turn renders "think → card" per round instead of
-  // piling every round's reasoning at the top of the message.
-  const askUserSegments = useMemo(
-    () => (useInlineAskUserSegments ? splitEventsByAskUser(msg.events) : []),
-    [useInlineAskUserSegments, msg.events],
-  );
+  // Round-wise split of the event stream at each ask_user card is handled
+  // by extractMessageSegments + leadingTraceEvents (below): pre-card rounds
+  // stay in the pinned activity block, post-card rounds render inline where
+  // they happened.
   const hasInlineAskUser =
     useInlineAskUserSegments &&
     messageSegments.some((seg) => seg.kind === "ask_user");
+  // The activity block is pinned to the top of the message, so it can only
+  // show the rounds that ran BEFORE the first card. What the resumed rounds
+  // reason about renders below the card they answer, in stream order.
+  const headerTraceEvents = useMemo(
+    () =>
+      hasInlineAskUser
+        ? leadingTraceEvents(events, messageSegments)
+        : undefined,
+    [hasInlineAskUser, messageSegments, events],
+  );
 
   const researchInProgress =
     outlineStatus === "researching" || outlineStatus === "done";
@@ -423,18 +431,14 @@ const AssistantMessage = memo(function AssistantMessage({
       {/* Activity block pinned to the TOP: the status header
           ("DeepTutor Exploring… · 8s" → "DeepTutor responded. · 10s") with
           the exploring trace nested beneath it — expanded while DeepTutor is
-          still working, collapsed once it settles into the final answer.
-          Messages with inline ask_user cards split the trace per round
-          instead (see the hasInlineAskUser branch below), so the single
-          top-pinned block is skipped there. */}
-      {!hasInlineAskUser ? (
-        <AssistantActivity
-          events={events}
-          isStreaming={isStreaming}
-          content={msg.content}
-          className="mb-3"
-        />
-      ) : null}
+          still working, collapsed once it settles into the final answer. */}
+      <AssistantActivity
+        events={events}
+        traceEvents={headerTraceEvents}
+        isStreaming={isStreaming}
+        content={msg.content}
+        className="mb-3"
+      />
       {outlinePreview && outlinePreview.sub_topics.length > 0 ? (
         <>
           {/* Layout for the merged research bubble:
@@ -505,40 +509,36 @@ const AssistantMessage = memo(function AssistantMessage({
           />
         </>
       ) : hasInlineAskUser ? (
-        // Default chat surface with one or more ask_user calls: render each
-        // round as its own "thinking trace → text → card" group (in stream
-        // order), so a multi-round mastery turn does not pile every round's
-        // reasoning at the top of the message.
-        askUserSegments.map((roundEvents, roundIndex) => {
-          const roundSegments = extractMessageSegments(roundEvents);
-          return (
-            <div key={roundIndex} className="space-y-3">
-              <AssistantActivity
-                events={roundEvents}
-                isStreaming={isStreaming}
-                className="mb-1"
-              />
-              {roundSegments.map((seg) =>
-                seg.kind === "text" ? (
-                  <AssistantResponse
-                    key={seg.key}
-                    content={seg.text}
-                    isStreaming={isStreaming}
-                  />
-                ) : (
-                  <AskUserOptions
-                    key={seg.key}
-                    data={seg.data}
-                    onSubmit={(reply) => {
-                      if (!onSubmitUserReply) return;
-                      onSubmitUserReply(reply);
-                    }}
-                  />
-                ),
-              )}
-            </div>
-          );
-        })
+        // Default chat surface with one or more ask_user calls: render
+        // text and cards in the exact order they were streamed, so the
+        // pre-ask_user narration sits above the card and the resumed
+        // iteration's text sits below.
+        messageSegments.map((seg) =>
+          seg.kind === "text" ? (
+            <AssistantResponse
+              key={seg.key}
+              content={seg.text}
+              isStreaming={isStreaming}
+            />
+          ) : seg.kind === "trace" ? (
+            // What DeepTutor worked out after the user answered — shown
+            // where they are looking, not back up in the header block.
+            <NestedTraceFlow
+              key={seg.key}
+              events={seg.events}
+              isStreaming={isStreaming}
+            />
+          ) : (
+            <AskUserOptions
+              key={seg.key}
+              data={seg.data}
+              onSubmit={(reply) => {
+                if (!onSubmitUserReply) return;
+                onSubmitUserReply(reply);
+              }}
+            />
+          ),
+        )
       ) : (
         <AssistantResponse content={msg.content} isStreaming={isStreaming} />
       )}
@@ -1407,18 +1407,24 @@ export const ChatMessageList = memo(function ChatMessageList({
           const sib =
             msg.id !== undefined ? siblingsByMessageId.get(msg.id) : undefined;
           return (
-            <UserMessage
+            <div
               key={`${msg.role}-${i}`}
-              msg={msg}
-              index={i}
-              onPreviewAttachment={onPreviewAttachment}
-              onCopy={onCopyAssistantMessage}
-              onEdit={onEditMessage}
-              editDisabled={isStreaming}
-              siblingInfo={sib}
-              onSwitchBranch={onSwitchBranch}
-              availableKbNames={availableKbNames}
-            />
+              className="w-full"
+              data-chat-message-id={msg.id}
+              data-chat-message-role={msg.role}
+            >
+              <UserMessage
+                msg={msg}
+                index={i}
+                onPreviewAttachment={onPreviewAttachment}
+                onCopy={onCopyAssistantMessage}
+                onEdit={onEditMessage}
+                editDisabled={isStreaming}
+                siblingInfo={sib}
+                onSwitchBranch={onSwitchBranch}
+                availableKbNames={availableKbNames}
+              />
+            </div>
           );
         }
 
@@ -1459,7 +1465,12 @@ export const ChatMessageList = memo(function ChatMessageList({
         })();
 
         return (
-          <div key={`${msg.role}-${i}`} className="w-full">
+          <div
+            key={`${msg.role}-${i}`}
+            className="w-full"
+            data-chat-message-id={msg.id}
+            data-chat-message-role={msg.role}
+          >
             <InlineFileCardProvider
               attachments={msg.attachments ?? []}
               events={msg.events}
