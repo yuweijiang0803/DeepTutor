@@ -586,13 +586,14 @@ def _copy_mastery_to_server() -> int:
                 payload = MySQLLearningStore._progress_payload(progress, 1, now)
                 cur.execute(
                     """
-                    INSERT INTO dt_mastery_paths
+                    INSERT IGNORE INTO dt_mastery_paths
                         (path_id, user_id, state_json, revision, created_at, updated_at)
                     VALUES (%s, %s, %s, 1, %s, %s)
                     """,
                     (path_id, user_id, payload, progress.created_at, now),
                 )
-                count += 1
+                if cur.rowcount:
+                    count += 1
             elif progress.updated_at > row["updated_at"]:
                 revision = int(row["revision"]) + 1
                 payload = MySQLLearningStore._progress_payload(progress, revision, now)

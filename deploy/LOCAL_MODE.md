@@ -76,12 +76,17 @@ desktop Electron 壳已存在（`desktop/`）。因此"PC 端本地化"技术底
 ### 4.2 开启同步（本地 → 云端一次迁移）
 
 1. 登录 XiaoZhi，拿到用户身份（dt_user_id）
-2. 对三类学习数据做全量迁移（复用现有 MySQL 存储的写入接口）：
-   - 会话记录（MySQLSessionStore.upsert 系列）
-   - 错题本（notebook_entries → MySQL）
-   - 精通路径（mastery_* → MySQLLearningStore）
-3. 迁移完成后，`mysql_configured()` 生效 → 读写自动切到服务器
-4. 迁移是"上传合并"：服务器已存在同 key 记录时，以**时间戳新者胜**（last-write-wins），不覆盖新数据
+2. 迁移服务 `deeptutor/services/sync/migrate.py` 做全量迁移：
+   - 会话记录：数据库层复制（`dt_sessions/dt_turns/dt_messages/dt_turn_events`），
+     session/turn id 保留，message id 重映射（`parent_message_id` / `summary_up_to_msg_id` 随之改写）
+   - 错题本（`notebook_entries → dt_notebook_entries`）
+   - 精通路径（`mastery_paths → dt_mastery_paths`，`state_json` 原样复制）
+3. **重建式语义**：迁移前先清理该用户在服务器上的三类数据，再全量上传，
+   **幂等可重跑**（`messages`/`turn_events` 无自然唯一键，不清理会重复）。
+   精通路径额外按 `updated_at` 做 last-write-wins；跨用户 path_id 冲突时
+   `INSERT IGNORE` 跳过，不阻断迁移。
+4. 迁移完成后，`mysql_configured()` 生效 → 读写自动切到服务器
+5. 目标库缺表时自动建表（`ensure_server_schema`：`dt_notebook_entries`、`dt_mastery_*`）
 
 ### 4.3 关闭同步（云端 → 本地回迁，可选）
 
@@ -133,23 +138,23 @@ desktop Electron 壳已存在（`desktop/`）。因此"PC 端本地化"技术底
 
 ## 七、技术改动清单
 
-1. **存储工厂扩展**：`get_session_store()` / `get_learning_store()` 已按 `mysql_configured()` 切换，无需改动核心逻辑；新增"模式"设定写入 settings
-2. **迁移服务**（新增，`deeptutor/services/sync/`）：
-   - `migrate_local_to_server(user_id)`：读 SQLite → 写 MySQL
-   - `migrate_server_to_local(user_id)`：读 MySQL → 写 SQLite
-   - 基于现有 MySQL store / SQLite store 的接口，不直接操作 SQL
-3. **登录门控**：同步模式启动时要求有效 XiaoZhi token（复用现有 SSO 校验）
-4. **LLM 配置切换**：同步模式下发服务器 key 配置（settings 覆盖）
-5. **设置页 UI**："数据存储"区块 + 迁移进度（前端）
-6. **desktop 打包**：Electron 打包时默认不注入 MySQL 配置 → 出厂即本地模式
+1. **存储工厂扩展**：`get_session_store()` / `get_learning_store()` 已按 `mysql_configured()` 切换，无需改动核心逻辑；开启/关闭同步通过 `save_mysql_settings()` 写入 mysql.json
+2. **迁移服务**（已实现，`deeptutor/services/sync/migrate.py`）：
+   - `migrate_local_to_server()`：读 SQLite → 写 MySQL（重建式，幂等）
+   - `migrate_server_to_local()`：读 MySQL → 写 SQLite（回迁，会话重建 + mastery last-write-wins）
+   - `ensure_server_schema()`：自动建 `dt_notebook_entries` / `dt_mastery_*` 表
+3. **API**（已实现，`deeptutor/api/routers/sync.py`）：`GET /api/v1/sync/status`、`POST /api/v1/sync/enable`（需登录）、`POST /api/v1/sync/disable`（可选 pull_first）
+4. **设置页 UI**（已实现，`/settings/storage`）：模式显示、开启同步（登录 + MySQL 连接 + 迁移结果）、关闭同步（可选拉回）
+5. **LLM 配置切换**：同步模式走服务器 key —— 待做（需学校端统一 key 方案）
+6. **desktop 打包**：Electron 打包默认不注入 MySQL 配置 → 出厂即本地模式 —— 待做
 
 ## 八、实施阶段
 
-| 阶段 | 内容 | 工作量 |
+| 阶段 | 内容 | 状态 |
 | --- | --- | --- |
-| P0 | 双模式开关 + 登录门控 + 迁移服务（学习数据三类） | 主要工作量 |
-| P1 | 设置页 UI + 迁移进度 + 启动 token 校验 | 中 |
-| P2 | 关闭同步回迁 + 迁移日志/冲突提示 | 小 |
+| P0 | 双模式开关 + 登录门控 + 迁移服务（学习数据三类） | ✅ 已实现（2026-08-27） |
+| P1 | 设置页 UI + 迁移结果提示 + 启动 token 校验 | ✅ UI 已实现；token 校验由现有 auth 401 跳转覆盖 |
+| P2 | 关闭同步回迁（pull_first）+ 迁移日志/冲突提示 | ✅ 回迁已实现；冲突明细待补 |
 | P3（可选） | 知识库/记忆同步 v2（向量增量同步） | 另行设计 |
 
 ## 九、待决策点（其余已定，见 §〇）
