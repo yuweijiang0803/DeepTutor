@@ -276,6 +276,15 @@ async def require_auth(
         _install_current_user(None)
         return None
 
+    # LOCAL_MODE: 本地模式（未启用同步）免登录，解析为 local admin。
+    # 只有开启同步（数据要上服务器）才需要真实账号身份——那一步走
+    # ``require_signed_in``（见下）。
+    from deeptutor.services.session.mysql_store import mysql_configured
+
+    if not mysql_configured():
+        _install_current_user(None)
+        return None
+
     token = _extract_token(authorization, dt_token)
     if not token:
         raise HTTPException(
@@ -292,6 +301,33 @@ async def require_auth(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    _install_current_user(payload)
+    return payload
+
+
+async def require_signed_in(
+    authorization: str | None = Header(default=None, alias="Authorization"),
+    dt_token: str | None = Cookie(default=None, alias=_COOKIE_NAME),
+) -> TokenPayload | None:
+    """Like ``require_auth`` but never falls back to local admin.
+
+    Used by operations that need a real account identity — enabling/disabling
+    sync, where every migrated row must belong to a specific XiaoZhi user.
+    """
+    token = _extract_token(authorization, dt_token)
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="请先登录 XiaoZhi 账号",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    payload = decode_token(token)
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     _install_current_user(payload)
     return payload
 
@@ -325,6 +361,12 @@ async def ws_require_auth(ws: WebSocket) -> _CtxToken | _WsAuthFailed:
             reset_current_user(user_token)
     """
     if not AUTH_ENABLED:
+        return _install_current_user(None)
+
+    # LOCAL_MODE: 本地模式免登录（同 require_auth）。
+    from deeptutor.services.session.mysql_store import mysql_configured
+
+    if not mysql_configured():
         return _install_current_user(None)
 
     token = ws.query_params.get("token") or ws.cookies.get(_COOKIE_NAME)

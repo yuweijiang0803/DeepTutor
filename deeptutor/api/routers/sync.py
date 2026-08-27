@@ -15,7 +15,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from deeptutor.api.routers.auth import require_auth
+from deeptutor.api.routers.auth import require_signed_in
 from deeptutor.services.config.runtime_settings import (
     load_mysql_settings,
     save_mysql_settings,
@@ -59,7 +59,7 @@ async def sync_status() -> dict[str, Any]:
     }
 
 
-@router.post("/enable", dependencies=[Depends(require_auth)])
+@router.post("/enable", dependencies=[Depends(require_signed_in)])
 async def enable_sync(body: SyncEnableRequest) -> dict[str, Any]:
     """Turn sync mode on: enable the pre-provisioned MySQL connection and
     migrate local conversations / question bank / mastery paths up under the
@@ -104,7 +104,7 @@ async def enable_sync(body: SyncEnableRequest) -> dict[str, Any]:
     return {"mode": "sync", "already_enabled": False, "report": report.to_dict()}
 
 
-@router.post("/disable", dependencies=[Depends(require_auth)])
+@router.post("/disable", dependencies=[Depends(require_signed_in)])
 async def disable_sync(body: SyncDisableRequest) -> dict[str, Any]:
     """Turn sync mode off. By default server data stays on the server; pass
     ``pull_first: true`` to copy it back into the local store first."""
