@@ -23,13 +23,6 @@ export default function StorageSettingsPage() {
   const [report, setReport] = useState<SyncReport | null>(null);
   const [pullFirst, setPullFirst] = useState(false);
 
-  // MySQL connection form (only meaningful when enabling sync).
-  const [host, setHost] = useState("");
-  const [port, setPort] = useState(3306);
-  const [user, setUser] = useState("");
-  const [password, setPassword] = useState("");
-  const [database, setDatabase] = useState("mixly");
-
   const refresh = useCallback(async () => {
     try {
       setStatus(await fetchSyncStatus());
@@ -52,13 +45,7 @@ export default function StorageSettingsPage() {
     setError("");
     setReport(null);
     try {
-      const res = await enableSync({
-        host,
-        port,
-        user,
-        password,
-        database,
-      });
+      const res = await enableSync({ host: "" }); // connection is pre-provisioned server-side
       setReport(res.report ?? null);
       await refresh();
     } catch (e) {
@@ -144,6 +131,7 @@ export default function StorageSettingsPage() {
           </div>
           <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">
             登录 XiaoZhi 账号后，把本地数据上传到学校服务器。之后的新数据会直接存入服务器。
+            服务器连接已由学校统一配置，无需手动填写。
           </p>
 
           {loggedIn === false && (
@@ -161,68 +149,21 @@ export default function StorageSettingsPage() {
           )}
 
           {loggedIn === true && (
-            <div className="mt-4 space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <label className="space-y-1">
-                  <span className="text-[12px] text-[var(--muted-foreground)]">服务器地址</span>
-                  <input
-                    value={host}
-                    onChange={(e) => setHost(e.target.value)}
-                    placeholder="db.example.com"
-                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[13px] outline-none focus:border-[var(--accent)]"
-                  />
-                </label>
-                <label className="space-y-1">
-                  <span className="text-[12px] text-[var(--muted-foreground)]">端口</span>
-                  <input
-                    type="number"
-                    value={port}
-                    onChange={(e) => setPort(Number(e.target.value) || 3306)}
-                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[13px] outline-none focus:border-[var(--accent)]"
-                  />
-                </label>
-                <label className="space-y-1">
-                  <span className="text-[12px] text-[var(--muted-foreground)]">用户名</span>
-                  <input
-                    value={user}
-                    onChange={(e) => setUser(e.target.value)}
-                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[13px] outline-none focus:border-[var(--accent)]"
-                  />
-                </label>
-                <label className="space-y-1">
-                  <span className="text-[12px] text-[var(--muted-foreground)]">密码</span>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[13px] outline-none focus:border-[var(--accent)]"
-                  />
-                </label>
-                <label className="space-y-1">
-                  <span className="text-[12px] text-[var(--muted-foreground)]">数据库</span>
-                  <input
-                    value={database}
-                    onChange={(e) => setDatabase(e.target.value)}
-                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-[13px] outline-none focus:border-[var(--accent)]"
-                  />
-                </label>
-              </div>
-              <button
-                onClick={handleEnable}
-                disabled={busy !== "none" || !host}
-                className="inline-flex items-center gap-2 rounded-lg bg-[var(--accent)] px-4 py-2 text-[13px] font-medium text-[var(--accent-foreground)] disabled:opacity-50"
-              >
-                {busy === "enabling" ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" /> 正在上传…
-                  </>
-                ) : (
-                  <>
-                    <CloudUpload className="h-4 w-4" /> 开启同步并上传本地数据
-                  </>
-                )}
-              </button>
-            </div>
+            <button
+              onClick={handleEnable}
+              disabled={busy !== "none"}
+              className="mt-4 inline-flex items-center gap-2 rounded-lg bg-[var(--accent)] px-4 py-2 text-[13px] font-medium text-[var(--accent-foreground)] disabled:opacity-50"
+            >
+              {busy === "enabling" ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" /> 正在上传…
+                </>
+              ) : (
+                <>
+                  <CloudUpload className="h-4 w-4" /> 开启同步并上传本地数据
+                </>
+              )}
+            </button>
           )}
         </div>
       )}
