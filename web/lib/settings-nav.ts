@@ -351,6 +351,16 @@ export const SETTINGS_CATEGORIES: SettingsCategory[] = [
     icon: BrainCircuit,
     href: "/settings/memory",
   },
+  {
+    key: "storage",
+    label: { zh: "数据存储", en: "Storage" },
+    blurb: {
+      zh: "本地模式与云端同步",
+      en: "Local mode and cloud sync",
+    },
+    icon: Database,
+    href: "/settings/storage",
+  },
 ];
 
 export const SETTINGS_HUB_HREF = "/settings";
@@ -384,6 +394,7 @@ const STORAGE_PATHS: Record<string, string> = {
   "/settings/attachments": "data/user/settings/system.json",
   "/settings/capabilities": "data/user/settings/main.yaml · agents.yaml",
   "/settings/memory": "data/user/settings/main.yaml",
+  "/settings/storage": "data/user/settings/mysql.json",
   "/settings/agents/claude-code": "data/user/settings/subagent.json",
   "/settings/agents/codex": "data/user/settings/subagent.json",
   "/settings/agents/gemini": "data/user/settings/subagent.json",
