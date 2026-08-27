@@ -24,6 +24,28 @@ const API_BASE_URL =
 
 const AUTH_ENABLED = parseAuthEnabled(process.env.DEEPTUTOR_AUTH_ENABLED);
 
+// LOCAL_MODE: the backend serves local (non-synced) installations without
+// login. The auth gate must mirror that decision at the edge, but the storage
+// mode flips at runtime (a user can enable sync mid-session), so it is polled
+// from the backend rather than baked into the build. Short TTL keeps the cost
+// to one request per few seconds at most.
+let _modeCache: { mode: "local" | "sync"; at: number } | null = null;
+
+async function backendStorageMode(): Promise<"local" | "sync"> {
+  const now = Date.now();
+  if (_modeCache && now - _modeCache.at < 5000) return _modeCache.mode;
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/v1/sync/status`, {
+      cache: "no-store",
+    });
+    const data = (await res.json()) as { mode?: string };
+    _modeCache = { mode: data.mode === "sync" ? "sync" : "local", at: now };
+  } catch {
+    _modeCache = { mode: "local", at: now };
+  }
+  return _modeCache.mode;
+}
+
 // Redirect to the login page, preserving the intended destination in `next`.
 // A present-but-invalid cookie is cleared so the browser stops resending it;
 // when no cookie was sent there is nothing to clear.
@@ -39,7 +61,7 @@ function redirectToLogin(
   return response;
 }
 
-export function proxy(req: NextRequest): NextResponse {
+export async function proxy(req: NextRequest): Promise<NextResponse> {
   const { pathname, search } = req.nextUrl;
 
   if (isCodexCallbackPath(pathname)) {
@@ -60,6 +82,11 @@ export function proxy(req: NextRequest): NextResponse {
   //    isAuthExempt: that exemption is what keeps the logo/banner images
   //    loading once login is enabled — issue #599).
   if (!AUTH_ENABLED || isAuthExempt(pathname)) {
+    return NextResponse.next();
+  }
+
+  // LOCAL_MODE: local (non-synced) installations need no login at the edge.
+  if ((await backendStorageMode()) === "local") {
     return NextResponse.next();
   }
 

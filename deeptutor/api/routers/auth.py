@@ -469,6 +469,19 @@ async def auth_status(
             is_admin=True,
         )
 
+    # LOCAL_MODE: 本地模式（未启用同步）免登录，视为已认证的 local admin。
+    from deeptutor.services.session.mysql_store import mysql_configured
+
+    if not mysql_configured():
+        return AuthStatusResponse(
+            enabled=False,
+            authenticated=True,
+            user_id="local-admin",
+            username="local",
+            role="admin",
+            is_admin=True,
+        )
+
     token = _extract_token(authorization, dt_token)
     payload = decode_token(token) if token else None
     avatar = ""
