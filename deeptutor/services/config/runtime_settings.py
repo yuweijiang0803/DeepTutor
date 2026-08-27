@@ -1256,6 +1256,11 @@ def load_mysql_settings() -> dict[str, Any]:
     return get_runtime_settings_service().load_mysql()
 
 
+def save_mysql_settings(settings: dict[str, Any]) -> dict[str, Any]:
+    """Persist the MySQL session-store settings to mysql.json."""
+    return get_runtime_settings_service().save_mysql(settings)
+
+
 def load_mineru_settings() -> dict[str, Any]:
     return get_runtime_settings_service().load_mineru()
 

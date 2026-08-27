@@ -377,6 +377,7 @@ from deeptutor.api.routers import (
     outputs,
     partners,
     personas,
+    sync,
     plugins_api,
     question,
     question_notebook,
@@ -480,7 +481,11 @@ app.include_router(
     tags=["roles"],
     dependencies=_auth,
 )
-# Public UI-settings read (auth pages bootstrap the interface language
+app.include_router(
+    sync.router,
+    prefix="/api/v1/sync",
+    tags=["sync"],
+)# Public UI-settings read (auth pages bootstrap the interface language
 # before a session exists, so GET /api/v1/settings/ui must not be gated
 # by _auth). Mounted first so the path resolves here, not on the gated
 # settings router below.
