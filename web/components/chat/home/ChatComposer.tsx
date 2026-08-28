@@ -37,6 +37,8 @@ import {
   isSvgFilename,
 } from "@/lib/doc-attachments";
 import { useTranslation } from "react-i18next";
+import { useRouter } from "next/navigation";
+import { useAuthStatus } from "@/hooks/useAuthStatus";
 import type { SelectedHistorySession } from "@/components/chat/HistorySessionPicker";
 import type { SelectedQuestionEntry } from "@/components/chat/QuestionBankPicker";
 import type { SelectedRecord } from "@/lib/notebook-selection-types";
@@ -368,6 +370,8 @@ export default memo(function ChatComposer({
   inputPlaceholder?: string;
 }) {
   const { t } = useTranslation();
+  const router = useRouter();
+  const { authenticated, loading: authLoading } = useAuthStatus();
   const CapIcon = activeCap.icon;
 
   const [hasContent, setHasContent] = useState(false);
@@ -634,6 +638,14 @@ export default memo(function ChatComposer({
   ];
 
   const handleManualSend = useCallback(() => {
+    // Chatting requires a signed-in account: browsing stays open, but sending
+    // a message bounces to the login page (local mode has no login by default).
+    if (!authLoading && !authenticated) {
+      router.push(
+        `/login?redirect=${encodeURIComponent(window.location.pathname)}`,
+      );
+      return;
+    }
     if (isConfigBlocked) {
       // Don't silently fail — surface the config card so the user knows
       // they need to confirm settings first.
@@ -643,7 +655,15 @@ export default memo(function ChatComposer({
     if (!canSend) return;
     const content = inputHandleRef.current?.getValue() || "";
     doSend(content);
-  }, [canSend, doSend, isConfigBlocked, onRequestConfigConfirm]);
+  }, [
+    authLoading,
+    authenticated,
+    router,
+    canSend,
+    doSend,
+    isConfigBlocked,
+    onRequestConfigConfirm,
+  ]);
 
   // One button, so one handler: mid-turn the same control cancels — except
   // while the turn is waiting on the user, where sending IS how it continues.
