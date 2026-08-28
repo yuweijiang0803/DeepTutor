@@ -3,10 +3,7 @@
 import { LogOut } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { logout } from "@/lib/auth";
-import {
-  notifyAuthStatusChanged,
-  useAuthStatus,
-} from "@/hooks/useAuthStatus";
+import { useAuthStatus } from "@/hooks/useAuthStatus";
 
 interface LogoutButtonProps {
   collapsed?: boolean;
@@ -23,9 +20,10 @@ export function LogoutButton({ collapsed = false }: LogoutButtonProps) {
 
   async function handleLogout() {
     await logout();
-    // Stay on the current page — just refresh the auth state everywhere so
-    // the sidebar flips to "not signed in" without a reload or redirect.
-    notifyAuthStatusChanged();
+    // Clear the session server-side + cookie, then reload so every consumer
+    // (sidebar, profile, send gate) re-reads the logged-out state. Stays on
+    // the current page — the reload re-renders the same route.
+    window.location.reload();
   }
 
   if (collapsed) {
