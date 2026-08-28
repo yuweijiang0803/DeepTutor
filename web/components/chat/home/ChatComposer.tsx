@@ -69,6 +69,7 @@ import ContextReferenceTree, {
 } from "./ContextReferenceTree";
 import { ComposerInput, type ComposerInputHandle } from "./ComposerInput";
 import { useVoiceRecorder } from "@/hooks/useVoiceRecorder";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 interface PendingAttachment {
   type: string;
@@ -377,6 +378,7 @@ export default memo(function ChatComposer({
   const [hasContent, setHasContent] = useState(false);
   const [moreCapsOpen, setMoreCapsOpen] = useState(false);
   const [lastCapMenuOpen, setLastCapMenuOpen] = useState(capMenuOpen);
+  const [loginPromptOpen, setLoginPromptOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const restoreFocusOnReturnRef = useRef(false);
   const inputHandleRef = useRef<ComposerInputHandle>(null);
@@ -639,11 +641,9 @@ export default memo(function ChatComposer({
 
   const handleManualSend = useCallback(() => {
     // Chatting requires a signed-in account: browsing stays open, but sending
-    // a message bounces to the login page (local mode has no login by default).
+    // a message while logged out pops a prompt to sign in first.
     if (!authLoading && !authenticated) {
-      router.push(
-        `/login?redirect=${encodeURIComponent(window.location.pathname)}`,
-      );
+      setLoginPromptOpen(true);
       return;
     }
     if (isConfigBlocked) {
@@ -658,7 +658,6 @@ export default memo(function ChatComposer({
   }, [
     authLoading,
     authenticated,
-    router,
     canSend,
     doSend,
     isConfigBlocked,
@@ -1190,6 +1189,21 @@ export default memo(function ChatComposer({
           </div>
         </div>
       </div>
+      <ConfirmDialog
+        open={loginPromptOpen}
+        title="需要登录"
+        confirmLabel="去登录"
+        cancelLabel="稍后再说"
+        onConfirm={() => {
+          setLoginPromptOpen(false);
+          router.push(
+            `/login?redirect=${encodeURIComponent(window.location.pathname)}`,
+          );
+        }}
+        onCancel={() => setLoginPromptOpen(false)}
+      >
+        对话需要先登录 XiaoZhi 账号，登录后数据会正常保存。
+      </ConfirmDialog>
     </div>
   );
 });
