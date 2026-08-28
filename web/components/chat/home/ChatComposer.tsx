@@ -639,13 +639,21 @@ export default memo(function ChatComposer({
     ),
   ];
 
+  // Single gated send path: Enter (ComposerInput.onSend), the send button, and
+  // paste-through all funnel here. Chatting requires a signed-in account —
+  // logged-out users get the sign-in prompt instead of sending.
+  const guardedSend = useCallback(
+    (content: string) => {
+      if (!authLoading && !authenticated) {
+        setLoginPromptOpen(true);
+        return;
+      }
+      doSend(content);
+    },
+    [authLoading, authenticated, doSend],
+  );
+
   const handleManualSend = useCallback(() => {
-    // Chatting requires a signed-in account: browsing stays open, but sending
-    // a message while logged out pops a prompt to sign in first.
-    if (!authLoading && !authenticated) {
-      setLoginPromptOpen(true);
-      return;
-    }
     if (isConfigBlocked) {
       // Don't silently fail — surface the config card so the user knows
       // they need to confirm settings first.
@@ -654,12 +662,10 @@ export default memo(function ChatComposer({
     }
     if (!canSend) return;
     const content = inputHandleRef.current?.getValue() || "";
-    doSend(content);
+    guardedSend(content);
   }, [
-    authLoading,
-    authenticated,
     canSend,
-    doSend,
+    guardedSend,
     isConfigBlocked,
     onRequestConfigConfirm,
   ]);
@@ -758,7 +764,7 @@ export default memo(function ChatComposer({
             isVisualizeMode={isVisualizeMode}
             isStreaming={isStreaming}
             canSendEmpty={hasReferences}
-            onSend={doSend}
+            onSend={guardedSend}
             onInputChange={handleInputChange}
             onPaste={onPaste}
             connectedAgents={connectedAgents}
