@@ -1208,7 +1208,7 @@ export default memo(function ChatComposer({
         }}
         onCancel={() => setLoginPromptOpen(false)}
       >
-        对话需要先登录 XiaoZhi 账号，登录后数据会正常保存。
+        对话需要先登录，登录后数据会正常保存。
       </ConfirmDialog>
     </div>
   );

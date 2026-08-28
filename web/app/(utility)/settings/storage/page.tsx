@@ -77,7 +77,7 @@ export default function StorageSettingsPage() {
     <div className="space-y-6">
       <SettingsPageHeader
         title="数据存储"
-        description="数据保存在本机（默认），或同步到学校服务器（需 XiaoZhi 账号）"
+        description="数据保存在本机（默认），或同步到学校服务器（需登录）"
       />
 
       {/* Mode card */}
@@ -132,7 +132,7 @@ export default function StorageSettingsPage() {
             <h3 className="text-[14px] font-semibold">开启同步</h3>
           </div>
           <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">
-            登录 XiaoZhi 账号后开启同步：已有的本地数据会上传到学校服务器，
+            登录后开启同步：已有的本地数据会上传到学校服务器，
             之后的数据会同时保存在本机和服务器（可跨设备、教师可查看学情）。
             服务器连接已由学校统一配置，无需手动填写。
           </p>
@@ -142,7 +142,7 @@ export default function StorageSettingsPage() {
               href={loginHref}
               className="mt-4 inline-flex items-center gap-2 rounded-lg bg-[var(--accent)] px-4 py-2 text-[13px] font-medium text-[var(--accent-foreground)]"
             >
-              <LogIn className="h-4 w-4" /> 先登录 XiaoZhi 账号
+              <LogIn className="h-4 w-4" /> 先登录
             </a>
           )}
           {loggedIn === null && (
