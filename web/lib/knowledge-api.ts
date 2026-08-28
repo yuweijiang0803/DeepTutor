@@ -1314,9 +1314,7 @@ export async function removeWebSource(
   invalidateKnowledgeCaches();
 }
 
-export async function syncWebSources(
-  kbName: string,
-): Promise<WebSyncResult> {
+export async function syncWebSources(kbName: string): Promise<WebSyncResult> {
   const res = await apiFetch(
     apiUrl(`/api/v1/knowledge/${encodeURIComponent(kbName)}/sync-web`),
     { method: "POST" },

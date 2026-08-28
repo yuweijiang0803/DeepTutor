@@ -1703,7 +1703,7 @@ export default function ChatPage() {
 
     const messageElementForNode = (node: Node | null): HTMLElement | null => {
       const element =
-        node instanceof HTMLElement ? node : node?.parentElement ?? null;
+        node instanceof HTMLElement ? node : (node?.parentElement ?? null);
       return element?.closest<HTMLElement>("[data-chat-message-id]") ?? null;
     };
     const anchorMessage = messageElementForNode(selection.anchorNode);

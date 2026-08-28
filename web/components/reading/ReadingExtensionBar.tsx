@@ -33,7 +33,8 @@ export function ReadingExtensionBar({
         if (active) setExtensions(rows);
       })
       .catch((error) => {
-        if (active) onError(error instanceof Error ? error.message : String(error));
+        if (active)
+          onError(error instanceof Error ? error.message : String(error));
       });
     return () => {
       active = false;

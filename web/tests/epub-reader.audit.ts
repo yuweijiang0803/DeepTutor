@@ -31,7 +31,10 @@ async function illustratedEpub(): Promise<Buffer> {
       "base64",
     ),
   );
-  return zip.generateAsync({ type: "nodebuffer", mimeType: "application/epub+zip" });
+  return zip.generateAsync({
+    type: "nodebuffer",
+    mimeType: "application/epub+zip",
+  });
 }
 
 test("faithfully renders EPUB resources, navigates, and restores its CFI", async ({
@@ -58,18 +61,24 @@ test("faithfully renders EPUB resources, navigates, and restores its CFI", async
     testInfo.project.name === "epub-reader-webkit"
       ? () => page.getByRole("button", { name: "Next", exact: true }).click()
       : async () => {
-          await readerFrame.getByText("This layout comes from the EPUB.").click();
+          await readerFrame
+            .getByText("This layout comes from the EPUB.")
+            .click();
           await page.keyboard.press("ArrowRight");
         };
   for (let attempt = 0; attempt < 4; attempt += 1) {
     await turnForward();
     if (
-      await readerFrame.getByRole("heading", { name: "Second chapter" }).isVisible()
+      await readerFrame
+        .getByRole("heading", { name: "Second chapter" })
+        .isVisible()
     )
       break;
     await page.waitForTimeout(150);
   }
-  await expect(readerFrame.getByRole("heading", { name: "Second chapter" })).toBeVisible();
+  await expect(
+    readerFrame.getByRole("heading", { name: "Second chapter" }),
+  ).toBeVisible();
   await expect
     .poll(async () => {
       const response = await page.request.get("/api/v1/reading/materials");
@@ -89,5 +98,7 @@ test("faithfully renders EPUB resources, navigates, and restores its CFI", async
   await page.reload();
   await page.getByRole("button", { name: new RegExp(filename, "i") }).click();
   const restoredFrame = page.locator("iframe").contentFrame();
-  await expect(restoredFrame.getByRole("heading", { name: "Second chapter" })).toBeVisible();
+  await expect(
+    restoredFrame.getByRole("heading", { name: "Second chapter" }),
+  ).toBeVisible();
 });

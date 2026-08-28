@@ -131,12 +131,14 @@ export function TextUnitView({
   }, []);
 
   const updatePreferences = useCallback(
-    (next: Partial<{
-      fontSize: number;
-      lineWidth: number;
-      serif: boolean;
-      readerTheme: ReaderTheme;
-    }>) => {
+    (
+      next: Partial<{
+        fontSize: number;
+        lineWidth: number;
+        serif: boolean;
+        readerTheme: ReaderTheme;
+      }>,
+    ) => {
       const merged = { fontSize, lineWidth, serif, readerTheme, ...next };
       setFontSize(merged.fontSize);
       setLineWidth(merged.lineWidth);
@@ -263,7 +265,8 @@ export function TextUnitView({
             const properties = annotation.properties as
               | { annotationId?: string; color?: string; kind?: string }
               | undefined;
-            const color = COLOR_INK[properties?.color ?? ""] ?? COLOR_INK.yellow;
+            const color =
+              COLOR_INK[properties?.color ?? ""] ?? COLOR_INK.yellow;
             if (properties?.kind === "underline") {
               return {
                 fill: "transparent",
@@ -274,7 +277,9 @@ export function TextUnitView({
             return {
               fill: `rgb(${color})`,
               fillOpacity:
-                properties?.annotationId === highlightedAnnotationId ? 0.8 : 0.55,
+                properties?.annotationId === highlightedAnnotationId
+                  ? 0.8
+                  : 0.55,
             };
           },
         });
@@ -288,7 +293,9 @@ export function TextUnitView({
         instance.setAnnotations(rows);
         instance.on("clickAnnotation", (selected) => {
           const id = selected.id;
-          const annotation = annotations.find((row) => row.annotation_id === id);
+          const annotation = annotations.find(
+            (row) => row.annotation_id === id,
+          );
           if (annotation) onAnnotationClick?.(annotation);
         });
         if (highlightedAnnotationId) {
@@ -368,7 +375,10 @@ export function TextUnitView({
       return;
     }
     const range = selection.getRangeAt(0);
-    if (!text.trim() || !articleRef.current?.contains(range.commonAncestorContainer)) {
+    if (
+      !text.trim() ||
+      !articleRef.current?.contains(range.commonAncestorContainer)
+    ) {
       onSelection(null);
       return;
     }
@@ -417,7 +427,9 @@ export function TextUnitView({
     <div
       ref={readerRootRef}
       tabIndex={-1}
-      onPointerDown={() => readerRootRef.current?.focus({ preventScroll: true })}
+      onPointerDown={() =>
+        readerRootRef.current?.focus({ preventScroll: true })
+      }
       className="flex h-full flex-col"
       style={
         readerTheme === "sepia"
@@ -592,7 +604,10 @@ function TextWithHeadings({
   text: string;
   headings: ReaderHeading[];
 }) {
-  const lines = useMemo(() => readerLinesWithHeadings(text, headings), [headings, text]);
+  const lines = useMemo(
+    () => readerLinesWithHeadings(text, headings),
+    [headings, text],
+  );
 
   return (
     <>
@@ -600,7 +615,12 @@ function TextWithHeadings({
         const key = `line-${lineIndex}`;
         if (line.heading) {
           const Heading = `h${line.heading.level}` as
-            "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
+            | "h1"
+            | "h2"
+            | "h3"
+            | "h4"
+            | "h5"
+            | "h6";
           return (
             <Fragment key={key}>
               {lineIndex > 0 && "\n"}

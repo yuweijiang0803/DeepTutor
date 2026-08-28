@@ -10,6 +10,11 @@ export interface UserRecord {
   avatar?: string;
   /** Display name (XiaoZhi SSO users carry their XiaoZhi nickname). */
   nickname?: string;
+  book_permission?: {
+    create: boolean;
+    default: "none" | "read";
+    books: Record<string, "none" | "read" | "edit">;
+  };
 }
 
 export async function listUsers(): Promise<UserRecord[]> {

@@ -27,7 +27,10 @@ export function sequentialReadTarget(
   const maxScrollTop = Math.max(0, metrics.scrollHeight - metrics.clientHeight);
   if (maxScrollTop <= SCROLL_EDGE_TOLERANCE_PX) return null;
 
-  const step = Math.max(metrics.clientHeight * 0.9, SCROLL_EDGE_TOLERANCE_PX + 1);
+  const step = Math.max(
+    metrics.clientHeight * 0.9,
+    SCROLL_EDGE_TOLERANCE_PX + 1,
+  );
   if (direction === "next") {
     const remaining = maxScrollTop - metrics.scrollTop;
     if (remaining <= SCROLL_EDGE_TOLERANCE_PX) return null;

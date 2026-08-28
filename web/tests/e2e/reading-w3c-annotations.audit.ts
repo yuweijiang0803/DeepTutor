@@ -70,7 +70,11 @@ test.beforeEach(async ({ page }) => {
       });
     }
     if (path === "/api/v1/reading/supported-formats") {
-      return json({ extensions: [".txt"], max_bytes: 1024, raw_view_extensions: [] });
+      return json({
+        extensions: [".txt"],
+        max_bytes: 1024,
+        raw_view_extensions: [],
+      });
     }
     if (path === "/api/v1/reading/extensions") return json([]);
     if (path === "/api/v1/reading/materials") return json([material]);
@@ -97,13 +101,18 @@ test("a rich text annotation reflows and activates its sidebar entry", async ({
   await page.goto("/home");
 
   await page.getByRole("button", { name: "Chat", exact: true }).click();
-  await page.getByRole("button", { name: /Immersive Reading/ }).last().click();
+  await page
+    .getByRole("button", { name: /Immersive Reading/ })
+    .last()
+    .click();
   await page.getByRole("button", { name: "Open a document to read" }).click();
   await page.getByText("W3C Annotation Sample.txt").click();
 
   const highlight = page.locator(".r6o-annotation").first();
   await expect(highlight).toBeVisible();
-  const heading = page.locator('[data-reader-heading-id="dt-reader-heading-1-1"]');
+  const heading = page.locator(
+    '[data-reader-heading-id="dt-reader-heading-1-1"]',
+  );
   await expect(heading).toBeVisible();
   await expect(heading).toContainText("# Light can behave like a wave");
   await expect(page.locator("article.r6o-annotatable")).toHaveText(
@@ -114,7 +123,9 @@ test("a rich text annotation reflows and activates its sidebar entry", async ({
   await expect(highlight).toBeVisible();
   await expect(highlight).toHaveAttribute("data-annotation", "annotation-1");
 
-  const sidebarEntry = page.getByRole("button").filter({ hasText: "Wave behavior" });
+  const sidebarEntry = page
+    .getByRole("button")
+    .filter({ hasText: "Wave behavior" });
   await expect(sidebarEntry).toBeVisible();
   const article = page.locator("article.r6o-annotatable");
   const articleBox = await article.boundingBox();

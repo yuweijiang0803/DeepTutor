@@ -39,7 +39,10 @@ export function ReaderOutline({
   const activeHeadingRef = useRef<HTMLButtonElement | null>(null);
 
   const tree = useMemo(() => buildOutlineTree(rows), [rows]);
-  const visibleTree = useMemo(() => filterOutlineTree(tree, query), [query, tree]);
+  const visibleTree = useMemo(
+    () => filterOutlineTree(tree, query),
+    [query, tree],
+  );
   const visiblePageHeadings = useMemo(
     () => filterReaderHeadings(pageHeadings, query),
     [pageHeadings, query],
@@ -69,7 +72,9 @@ export function ReaderOutline({
   }, [activeHeadingId, showPageView]);
 
   const setAllCollapsed = (collapsed: boolean) => {
-    setCollapsedNodes(collapsed ? new Set(collectCollapsibleKeys(tree)) : new Set());
+    setCollapsedNodes(
+      collapsed ? new Set(collectCollapsibleKeys(tree)) : new Set(),
+    );
   };
 
   const switchTab = (tab: "document" | "page") => {
@@ -283,7 +288,10 @@ function OutlineBranch({
                 }`}
               >
                 {depth > 0 && (
-                  <span aria-hidden="true" className="h-4 w-px shrink-0 bg-[var(--border)]" />
+                  <span
+                    aria-hidden="true"
+                    className="h-4 w-px shrink-0 bg-[var(--border)]"
+                  />
                 )}
                 <span className="min-w-0 flex-1 truncate text-[12px] leading-5">
                   {node.row.title}
@@ -294,10 +302,16 @@ function OutlineBranch({
                   type="button"
                   onClick={() => onToggle(key)}
                   aria-expanded={!collapsed}
-                  aria-label={collapsed ? t("Expand section") : t("Collapse section")}
+                  aria-label={
+                    collapsed ? t("Expand section") : t("Collapse section")
+                  }
                   className="shrink-0 rounded p-1 text-[var(--muted-foreground)] transition hover:bg-[var(--muted)] hover:text-[var(--foreground)]"
                 >
-                  {collapsed ? <ChevronRight size={11} /> : <ChevronDown size={11} />}
+                  {collapsed ? (
+                    <ChevronRight size={11} />
+                  ) : (
+                    <ChevronDown size={11} />
+                  )}
                 </button>
               )}
             </div>

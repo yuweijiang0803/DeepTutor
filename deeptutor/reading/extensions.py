@@ -20,7 +20,7 @@ from deeptutor.core.entry_points import load_entry_point_group
 
 logger = logging.getLogger(__name__)
 ENTRY_POINT_GROUP = "deeptutor.reading_extensions"
-PROTOCOL_VERSION = "1"
+PROTOCOL_VERSION: Literal["1"] = "1"
 RESULT_TYPES = frozenset({"card", "quiz", "feedback", "browser_speech"})
 _ID_PATTERN = r"^[a-z][a-z0-9_-]{0,63}$"
 

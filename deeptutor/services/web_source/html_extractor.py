@@ -102,7 +102,7 @@ def extract_navigation(raw_html: str, base_url: str) -> list[dict]:
     """
     from urllib.parse import urljoin, urlparse
 
-    from lxml import html as lxml_html
+    from lxml import html as lxml_html  # nosec B410 - HTML parser, not XML
 
     try:
         tree = lxml_html.fromstring(raw_html)
@@ -215,7 +215,7 @@ def extract_article_markdown(raw_html: str) -> tuple[str, str]:
     Falls back to full-body text if no article container is found, but
     always strips navigation, scripts, and other boilerplate first.
     """
-    from lxml import html as lxml_html
+    from lxml import html as lxml_html  # nosec B410 - HTML parser, not XML
 
     title = ""
     try:

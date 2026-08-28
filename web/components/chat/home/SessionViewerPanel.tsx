@@ -167,7 +167,10 @@ export interface SessionViewerPanelHandle {
   /** Opens (or focuses) the follow-up chat tab for a quiz question. */
   openQuizFollowupTab(context: QuizFollowupTabContext): void;
   /** Opens an independent Little Tutor thread grounded in selected chat text. */
-  openSelectionTutorTab(selection: SelectionTutorContext, language: string): void;
+  openSelectionTutorTab(
+    selection: SelectionTutorContext,
+    language: string,
+  ): void;
   /** Opens (or focuses) an interactive GeoGebra applet tab. */
   openGeogebraTab(payload: GeogebraTabPayload): void;
   /** Opens (first time) or live-updates a connected subagent's run tab. */

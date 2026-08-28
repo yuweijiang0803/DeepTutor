@@ -266,7 +266,7 @@ class ReadingStore:
             # A repair or compatible re-ingest keeps user-owned state. EPUB
             # legacy upgrades with annotations were rejected above because
             # their old locators cannot be mapped safely to the spine.
-            state_names = (ANNOTATIONS_NAME, POSITION_NAME)
+            state_names: tuple[str, ...] = (ANNOTATIONS_NAME, POSITION_NAME)
             if existing is not None and existing.render_mode != "epub":
                 # A legacy text-reader position can point past the shorter
                 # source-faithful spine. Annotations are protected above;

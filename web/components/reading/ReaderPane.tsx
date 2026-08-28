@@ -94,13 +94,18 @@ export function ReaderPane({ onClose }: ReaderPaneProps) {
   // user decided, and that wins from then on.
   const [annotationPanel, setAnnotationPanel] = useState<boolean | null>(null);
   const [showOutline, setShowOutline] = useState(false);
-  const [outlineUserChoice, setOutlineUserChoice] = useState<boolean | null>(null);
+  const [outlineUserChoice, setOutlineUserChoice] = useState<boolean | null>(
+    null,
+  );
   const [autoJump, setAutoJump] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [currentLocator, setCurrentLocator] = useState(1);
   const [pageHeadings, setPageHeadings] = useState<ReaderHeading[]>([]);
   const [activeHeadingId, setActiveHeadingId] = useState<string | null>(null);
-  const [headingJump, setHeadingJump] = useState<{ id: string; nonce: number } | null>(null);
+  const [headingJump, setHeadingJump] = useState<{
+    id: string;
+    nonce: number;
+  } | null>(null);
   const nonceRef = useRef(0);
   const headingNonceRef = useRef(0);
 
@@ -125,7 +130,9 @@ export function ReaderPane({ onClose }: ReaderPaneProps) {
       return;
     }
     try {
-      const stored = window.localStorage.getItem(`dt.reader.outline.${material.material_id}`);
+      const stored = window.localStorage.getItem(
+        `dt.reader.outline.${material.material_id}`,
+      );
       setOutlineUserChoice(stored === null ? null : stored === "open");
     } catch {
       setOutlineUserChoice(null);
@@ -136,7 +143,8 @@ export function ReaderPane({ onClose }: ReaderPaneProps) {
     if (!material || outlineUserChoice !== null) return;
     const desktop = window.matchMedia("(min-width: 768px)").matches;
     setShowOutline(
-      desktop && ((material.outline?.length ?? 0) >= 8 || pageHeadings.length >= 3),
+      desktop &&
+        ((material.outline?.length ?? 0) >= 8 || pageHeadings.length >= 3),
     );
   }, [material, outlineUserChoice, pageHeadings.length]);
 
@@ -497,11 +505,15 @@ export function ReaderPane({ onClose }: ReaderPaneProps) {
             currentLocator={currentLocator}
             onNavigate={(locator) => {
               requestJump(locator);
-              if (!window.matchMedia("(min-width: 768px)").matches) setShowOutline(false);
+              if (!window.matchMedia("(min-width: 768px)").matches)
+                setShowOutline(false);
             }}
             onNavigateHeading={(heading) => {
               headingNonceRef.current += 1;
-              setHeadingJump({ id: heading.id, nonce: headingNonceRef.current });
+              setHeadingJump({
+                id: heading.id,
+                nonce: headingNonceRef.current,
+              });
             }}
             onClose={() => setShowOutline(false)}
           />

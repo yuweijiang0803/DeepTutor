@@ -20,20 +20,42 @@ export const DEFAULT_READER_DISPLAY_PREFERENCES: ReaderDisplayPreferences = {
   readerTheme: "auto",
 };
 
-function bounded(value: unknown, fallback: number, minimum: number, maximum: number): number {
+function bounded(
+  value: unknown,
+  fallback: number,
+  minimum: number,
+  maximum: number,
+): number {
   return typeof value === "number" && Number.isFinite(value)
     ? Math.min(maximum, Math.max(minimum, value))
     : fallback;
 }
 
-export function normaliseReaderDisplayPreferences(value: unknown): ReaderDisplayPreferences {
-  const row = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
-  const readerTheme = ["auto", "sepia", "night"].includes(String(row.readerTheme))
+export function normaliseReaderDisplayPreferences(
+  value: unknown,
+): ReaderDisplayPreferences {
+  const row =
+    value && typeof value === "object"
+      ? (value as Record<string, unknown>)
+      : {};
+  const readerTheme = ["auto", "sepia", "night"].includes(
+    String(row.readerTheme),
+  )
     ? (row.readerTheme as ReaderTheme)
     : DEFAULT_READER_DISPLAY_PREFERENCES.readerTheme;
   return {
-    fontSize: bounded(row.fontSize, DEFAULT_FONT_SIZE, MIN_FONT_SIZE, MAX_FONT_SIZE),
-    lineWidth: bounded(row.lineWidth, DEFAULT_LINE_WIDTH, MIN_LINE_WIDTH, MAX_LINE_WIDTH),
+    fontSize: bounded(
+      row.fontSize,
+      DEFAULT_FONT_SIZE,
+      MIN_FONT_SIZE,
+      MAX_FONT_SIZE,
+    ),
+    lineWidth: bounded(
+      row.lineWidth,
+      DEFAULT_LINE_WIDTH,
+      MIN_LINE_WIDTH,
+      MAX_LINE_WIDTH,
+    ),
     serif:
       typeof row.serif === "boolean"
         ? row.serif
@@ -50,7 +72,8 @@ export function readerDisplayShortcut(input: {
   readerHovered: boolean;
   readerFocused: boolean;
 }): ReaderDisplayShortcut | null {
-  if (!input.modifier || (!input.readerHovered && !input.readerFocused)) return null;
+  if (!input.modifier || (!input.readerHovered && !input.readerFocused))
+    return null;
   if (input.key === "+" || input.key === "=") return "increase";
   if (input.key === "-") return "decrease";
   if (input.key === "0") return "reset";

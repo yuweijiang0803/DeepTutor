@@ -99,26 +99,19 @@ test("book arrows read the current chapter before turning chapters", async ({
         ? new URL(requestUrl.pathname + requestUrl.search, BASE_URL)
         : requestUrl;
     const { pathname } = url;
-    if (
-      pathname ===
-      "/api/v1/book/books/sequential-fixture/pages/page-1"
-    ) {
+    if (pathname === "/api/v1/book/books/sequential-fixture/pages/page-1") {
       return route.fulfill(json({ page: fullPage(summaries[0]) }));
     }
-    if (
-      pathname ===
-      "/api/v1/book/books/sequential-fixture/pages/page-2"
-    ) {
+    if (pathname === "/api/v1/book/books/sequential-fixture/pages/page-2") {
       return route.fulfill(json({ page: fullPage(summaries[1]) }));
     }
-    if (
-      pathname ===
-      "/api/v1/book/books/sequential-fixture/pages/page-3"
-    ) {
+    if (pathname === "/api/v1/book/books/sequential-fixture/pages/page-3") {
       return route.fulfill(json({ page: fullPage(summaries[2]) }));
     }
     if (pathname === "/api/v1/book/books/sequential-fixture") {
-      return route.fulfill(json({ book, spine: null, pages: summaries, progress }));
+      return route.fulfill(
+        json({ book, spine: null, pages: summaries, progress }),
+      );
     }
     if (pathname === "/api/v1/book/books") {
       return route.fulfill(json({ books: [{ ...book, reading: null }] }));
@@ -135,10 +128,9 @@ test("book arrows read the current chapter before turning chapters", async ({
     return route.fulfill(json({}));
   });
 
-  await page.goto(
-    `${BASE_URL}/book?book=sequential-fixture&page=page-2`,
-    { waitUntil: "domcontentloaded" },
-  );
+  await page.goto(`${BASE_URL}/book?book=sequential-fixture&page=page-2`, {
+    waitUntil: "domcontentloaded",
+  });
   // A hidden reader (for example when the mobile chapter sidebar is expanded)
   // must not turn the page and skip unread content.
   await page.keyboard.press("ArrowRight");

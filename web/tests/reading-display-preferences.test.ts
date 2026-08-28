@@ -37,7 +37,10 @@ test("reset includes typography and theme preferences", () => {
     serif: true,
     readerTheme: "auto",
   });
-  assert.match(reader, /updatePreferences\(DEFAULT_READER_DISPLAY_PREFERENCES\)/);
+  assert.match(
+    reader,
+    /updatePreferences\(DEFAULT_READER_DISPLAY_PREFERENCES\)/,
+  );
 });
 
 test("stored preferences are bounded and malformed values fall back", () => {

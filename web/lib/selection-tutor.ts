@@ -51,7 +51,9 @@ export function buildSelectionTutorConfig(
       selected_text: normalizeSelectedText(context.selectedText),
       parent_session_id: context.parentSessionId ?? "",
       source_message_id: context.sourceMessageId,
-      source_message_text: normalizeSourceMessageText(context.sourceMessageText),
+      source_message_text: normalizeSourceMessageText(
+        context.sourceMessageText,
+      ),
       source_message_role: context.sourceMessageRole,
     },
   };

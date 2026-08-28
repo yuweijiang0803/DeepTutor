@@ -20,10 +20,7 @@ import {
   type EpubPageTurnDirection,
 } from "@/lib/epub-page-turn";
 import { cleanQuote } from "@/lib/reading-selection";
-import type {
-  JumpRequest,
-  SelectionPayload,
-} from "./PdfDocumentView";
+import type { JumpRequest, SelectionPayload } from "./PdfDocumentView";
 
 type EpubLocation = {
   start?: { cfi?: string; href?: string; percentage?: number };
@@ -59,7 +56,10 @@ type EpubRendition = {
     };
   };
   themes: {
-    register: (name: string, rules: Record<string, Record<string, string>>) => void;
+    register: (
+      name: string,
+      rules: Record<string, Record<string, string>>,
+    ) => void;
     select: (name: string) => void;
   };
 };
@@ -200,10 +200,11 @@ export function EpubDocumentView({
         ? selection.getRangeAt(0).getBoundingClientRect()
         : null;
       onSelection({
-        locator: locatorForEpubHref(
-          (contents.document?.location?.pathname ?? "").replace(/^\//, ""),
-          refsRef.current,
-        ) || locatorRef.current,
+        locator:
+          locatorForEpubHref(
+            (contents.document?.location?.pathname ?? "").replace(/^\//, ""),
+            refsRef.current,
+          ) || locatorRef.current,
         quote,
         rects: [],
         sourceAnchor: cfi,
@@ -216,7 +217,8 @@ export function EpubDocumentView({
     const onRenditionKey = (rawEvent: unknown) => {
       const event = rawEvent as KeyboardEvent;
       if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-      if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+      if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey)
+        return;
       if (!allowsEpubPageTurn(event.target)) return;
       event.preventDefault();
       turnPage(event.key === "ArrowLeft" ? "previous" : "next");
@@ -319,7 +321,9 @@ export function EpubDocumentView({
             (ref) => ref.locator === (position?.locator ?? 1),
           )?.source_href;
         try {
-          await rendition.display(position?.source_anchor || fallbackHref || undefined);
+          await rendition.display(
+            position?.source_anchor || fallbackHref || undefined,
+          );
         } catch {
           await rendition.display(
             fallbackHref ??
@@ -359,7 +363,8 @@ export function EpubDocumentView({
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-      if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+      if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey)
+        return;
       if (!allowsEpubPageTurn(event.target)) return;
       event.preventDefault();
       turnPage(event.key === "ArrowLeft" ? "previous" : "next");
@@ -402,7 +407,9 @@ export function EpubDocumentView({
           {
             fill: HIGHLIGHT_COLORS[annotation.color] ?? HIGHLIGHT_COLORS.yellow,
             "fill-opacity":
-              annotation.annotation_id === highlightedAnnotationId ? "0.8" : "0.55",
+              annotation.annotation_id === highlightedAnnotationId
+                ? "0.8"
+                : "0.55",
           },
         );
       }

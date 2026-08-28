@@ -91,14 +91,8 @@ test("normalizeMarkdownForDisplay decodes dense non-ASCII JSON escapes", () => {
 });
 
 test("decoded unicode cannot reintroduce invisible or bidi controls", () => {
-  assert.equal(
-    normalizeMarkdownForDisplay("\\u200b\\u4e2d\\u6587"),
-    "中文",
-  );
-  assert.equal(
-    normalizeMarkdownForDisplay("\\u202e\\u0061\\u0062"),
-    "ab",
-  );
+  assert.equal(normalizeMarkdownForDisplay("\\u200b\\u4e2d\\u6587"), "中文");
+  assert.equal(normalizeMarkdownForDisplay("\\u202e\\u0061\\u0062"), "ab");
 });
 
 test("normalizeMarkdownForDisplay keeps isolated and ASCII unicode escape examples", () => {

@@ -4,10 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 const source = fs.readFileSync(
-  path.resolve(
-    process.cwd(),
-    "app/(workspace)/book/components/PageReader.tsx",
-  ),
+  path.resolve(process.cwd(), "app/(workspace)/book/components/PageReader.tsx"),
   "utf8",
 );
 
@@ -31,25 +28,25 @@ test("turning backward lands at the end and forward lands at the start", () => {
   assert.ok(previousBranch >= 0);
   assert.ok(nextBranch > previousBranch);
   assert.ok(
-    source.slice(previousBranch, nextBranch).includes(
-      'pendingScrollPlacementRef.current = "end"',
-    ),
+    source
+      .slice(previousBranch, nextBranch)
+      .includes('pendingScrollPlacementRef.current = "end"'),
   );
   assert.ok(
-    source.slice(previousBranch, nextBranch).includes(
-      "pendingScrollPlacementPageIdRef.current = previousPage.id",
-    ),
+    source
+      .slice(previousBranch, nextBranch)
+      .includes("pendingScrollPlacementPageIdRef.current = previousPage.id"),
   );
   assert.ok(
-    source.slice(nextBranch).includes(
-      'pendingScrollPlacementRef.current = "start"',
-    ),
+    source
+      .slice(nextBranch)
+      .includes('pendingScrollPlacementRef.current = "start"'),
   );
 });
 
 test("the reader exposes native chapter progress and keeps direct footer turns", () => {
   assert.ok(source.includes("<progress"));
-  assert.ok(source.includes('max={100}'));
+  assert.ok(source.includes("max={100}"));
   assert.ok(source.includes("Chapter progress: {{percent}}%"));
   assert.ok(source.includes("onNavigate(page.id)"));
 });

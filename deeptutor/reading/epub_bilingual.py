@@ -17,8 +17,10 @@ import re
 import threading
 from typing import TYPE_CHECKING, Any
 import uuid
-import xml.etree.ElementTree as ET
 import zipfile
+
+from defusedxml import ElementTree as ET
+from defusedxml.common import DefusedXmlException
 
 from deeptutor.reading.models import MaterialManifest, ReadingError
 
@@ -47,7 +49,14 @@ def _metadata(epub: Path) -> dict[str, str]:
             if opf_name.startswith("/") or ".." in PurePosixPath(opf_name).parts:
                 return {}
             root = ET.fromstring(archive.read(opf_name))
-    except (KeyError, OSError, StopIteration, zipfile.BadZipFile, ET.ParseError):
+    except (
+        DefusedXmlException,
+        ET.ParseError,
+        KeyError,
+        OSError,
+        StopIteration,
+        zipfile.BadZipFile,
+    ):
         return {}
 
     wanted = ("title", "creator", "identifier", "language")

@@ -1,7 +1,4 @@
-import type {
-  AnnotationItem,
-  ReadingTextSelector,
-} from "@/lib/reading-api";
+import type { AnnotationItem, ReadingTextSelector } from "@/lib/reading-api";
 
 export interface W3CTextAnnotation {
   "@context": "http://www.w3.org/ns/anno.jsonld";
@@ -148,7 +145,11 @@ export function toRecogitoTextAnnotation(
   };
 }
 
-function quoteAt(text: string, exact: string, start: number): ReadingTextSelector {
+function quoteAt(
+  text: string,
+  exact: string,
+  start: number,
+): ReadingTextSelector {
   return {
     type: "TextQuoteSelector",
     exact,

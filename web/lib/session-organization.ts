@@ -22,9 +22,7 @@ export function organizeSessionTree(
   const roots: SessionSummary[] = [];
 
   for (const session of sessions) {
-    const proposedParent = String(
-      session.preferences?.parent_session_id || "",
-    );
+    const proposedParent = String(session.preferences?.parent_session_id || "");
     let parentId = nested && byId.has(proposedParent) ? proposedParent : "";
     if (parentId) {
       const visited = new Set([session.session_id]);
@@ -35,9 +33,7 @@ export function organizeSessionTree(
           break;
         }
         visited.add(cursor);
-        cursor = String(
-          byId.get(cursor)?.preferences?.parent_session_id || "",
-        );
+        cursor = String(byId.get(cursor)?.preferences?.parent_session_id || "");
       }
     }
 

@@ -21,6 +21,7 @@ import hashlib
 import logging
 from pathlib import Path
 import re
+from typing import Any
 from urllib.parse import quote, unquote, urldefrag, urljoin, urlparse
 
 import httpx
@@ -335,7 +336,7 @@ async def crawl_docs_site(
     max_depth: int = DEFAULT_MAX_DEPTH,
     max_pages: int = DEFAULT_MAX_PAGES,
     timeout_s: float = DEFAULT_TIMEOUT_S,
-    client_factory: any = None,
+    client_factory: Any = None,
 ) -> CrawlResult:
     """Crawl a documentation site starting from *base_url*.
 
@@ -416,7 +417,7 @@ async def crawl_docs_site(
             outcomes = await asyncio.gather(*tasks, return_exceptions=True)
 
             for outcome in outcomes:
-                if isinstance(outcome, Exception) or outcome is None:
+                if isinstance(outcome, BaseException) or outcome is None:
                     continue
 
                 # Track redirect target in visited set.

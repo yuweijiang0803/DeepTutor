@@ -90,15 +90,27 @@ test("chapter progress is bounded and zero when scrolling is unavailable", () =>
     50,
   );
   assert.equal(
-    chapterReadingPercent({ scrollTop: -20, scrollHeight: 3_000, clientHeight: 600 }),
+    chapterReadingPercent({
+      scrollTop: -20,
+      scrollHeight: 3_000,
+      clientHeight: 600,
+    }),
     0,
   );
   assert.equal(
-    chapterReadingPercent({ scrollTop: 9_999, scrollHeight: 3_000, clientHeight: 600 }),
+    chapterReadingPercent({
+      scrollTop: 9_999,
+      scrollHeight: 3_000,
+      clientHeight: 600,
+    }),
     100,
   );
   assert.equal(
-    chapterReadingPercent({ scrollTop: 0, scrollHeight: 601, clientHeight: 600 }),
+    chapterReadingPercent({
+      scrollTop: 0,
+      scrollHeight: 601,
+      clientHeight: 600,
+    }),
     0,
   );
 });

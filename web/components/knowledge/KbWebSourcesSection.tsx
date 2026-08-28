@@ -98,7 +98,9 @@ export default function KbWebSourcesSection({
       <div className="flex flex-col items-center justify-center gap-2 py-10">
         {error ? (
           <>
-            <p className="text-[12px] text-red-600 dark:text-red-400">{error}</p>
+            <p className="text-[12px] text-red-600 dark:text-red-400">
+              {error}
+            </p>
             <button
               type="button"
               onClick={() => {
@@ -221,7 +223,11 @@ export default function KbWebSourcesSection({
       ) : (
         <div className="space-y-2">
           {sources.map((src) => (
-            <WebSourceCard key={src.id} source={src} onRemove={() => void handleRemove(src.id)} />
+            <WebSourceCard
+              key={src.id}
+              source={src}
+              onRemove={() => void handleRemove(src.id)}
+            />
           ))}
         </div>
       )}
