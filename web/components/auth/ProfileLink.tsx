@@ -18,17 +18,30 @@ export function ProfileLink({ collapsed = false }: ProfileLinkProps) {
 
   useEffect(() => {
     fetchAuthStatus().then((next) => {
-      // Only surface the link when auth is on AND the user is signed in.
-      if (next?.enabled && next?.authenticated) setStatus(next);
+      // Surface the identity in both modes:
+      //   • sync mode (auth on)   → the signed-in account,
+      //   • local mode (auth off) → a "本地模式" badge linking to the
+      //     storage settings where login / sync can be turned on.
+      if (next?.authenticated) setStatus(next);
     });
   }, []);
 
-  if (!status?.username) return null;
+  if (!status?.authenticated) return null;
 
-  const active = pathname.startsWith("/profile");
+  const isLocalMode = !status.enabled;
+  const active = isLocalMode
+    ? pathname.startsWith("/settings/storage")
+    : pathname.startsWith("/profile");
   // Prefer the display nickname (XiaoZhi SSO), fall back to the username.
-  const label = status.nickname || status.username;
-  const avatar = (
+  const label = isLocalMode
+    ? "本地模式"
+    : status.nickname || status.username || "user";
+  const href = isLocalMode ? "/settings/storage" : "/profile";
+  const avatar = isLocalMode ? (
+    <span className="inline-flex h-[18px] w-[18px] items-center justify-center rounded-full bg-[var(--muted)] text-[10px]">
+      ↺
+    </span>
+  ) : (
     <UserAvatar
       username={label}
       userId={status.user_id}
@@ -41,15 +54,15 @@ export function ProfileLink({ collapsed = false }: ProfileLinkProps) {
   if (collapsed) {
     return (
       <Link
-        href="/profile"
+        href={href}
         className={`rounded-lg p-2 transition-colors
           ${
             active
               ? "bg-[var(--primary)]/10 text-[var(--primary)]"
               : "text-[var(--muted-foreground)] hover:bg-[var(--background)]/50 hover:text-[var(--foreground)]"
           }`}
-        aria-label={t("My profile")}
-        title={`${t("My profile")} — ${label}`}
+        aria-label={label}
+        title={`${isLocalMode ? "本地模式 · 数据仅存本机" : t("My profile")} — ${label}`}
       >
         {avatar}
       </Link>
@@ -58,14 +71,14 @@ export function ProfileLink({ collapsed = false }: ProfileLinkProps) {
 
   return (
     <Link
-      href="/profile"
+      href={href}
       className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] transition-colors
         ${
           active
             ? "bg-[var(--primary)]/10 text-[var(--primary)]"
             : "text-[var(--muted-foreground)] hover:bg-[var(--background)]/50 hover:text-[var(--foreground)]"
         }`}
-      title={t("My profile")}
+      title={isLocalMode ? "本地模式 · 数据仅存本机，登录可开启同步" : t("My profile")}
     >
       {avatar}
       <span className="truncate">{label}</span>
