@@ -109,7 +109,10 @@ export default function ProfilePage() {
     (async () => {
       const status = await fetchAuthStatus();
       if (cancelled) return;
-      if (!status?.enabled) {
+      // Local mode (auth off) has no account until the user signs in to
+      // enable sync — a signed-in local-mode user may still view their
+      // profile; an unsigned visitor is bounced to the home page.
+      if (!status?.enabled && !status.authenticated) {
         router.replace("/");
         return;
       }

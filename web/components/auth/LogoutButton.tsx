@@ -13,9 +13,12 @@ interface LogoutButtonProps {
 export function LogoutButton({ collapsed = false }: LogoutButtonProps) {
   const router = useRouter();
   const { t } = useTranslation();
-  const { enabled } = useAuthStatus();
+  const { enabled, authenticated } = useAuthStatus();
 
-  if (!enabled) return null;
+  // Show the sign-out affordance whenever an account is signed in — including
+  // local mode, where the login exists so the user can enable sync (without
+  // it, a leftover cookie would look like "no account but still chatting").
+  if (!enabled && !authenticated) return null;
 
   async function handleLogout() {
     await logout();
