@@ -913,7 +913,7 @@ def _require_profile_identity(payload: TokenPayload | None) -> TokenPayload:
 
 @router.get("/profile", response_model=UserInfo)
 async def get_profile(
-    payload: TokenPayload | None = Depends(require_auth),
+    payload: TokenPayload | None = Depends(require_signed_in),
 ) -> UserInfo:
     """Return the current user's own account info."""
     current = _require_profile_identity(payload)
@@ -933,7 +933,7 @@ async def get_profile(
 @router.put("/profile")
 async def update_profile(
     body: UpdateProfileRequest,
-    payload: TokenPayload | None = Depends(require_auth),
+    payload: TokenPayload | None = Depends(require_signed_in),
 ) -> dict:
     """Update the current user's own avatar marker (icon choice or reset).
 
@@ -954,7 +954,7 @@ async def update_profile(
 @router.put("/profile/avatar")
 async def upload_avatar(
     file: UploadFile = File(...),
-    payload: TokenPayload | None = Depends(require_auth),
+    payload: TokenPayload | None = Depends(require_signed_in),
 ) -> dict:
     """Upload an avatar image for the current user.
 
