@@ -363,8 +363,12 @@ async def ws_require_auth(ws: WebSocket) -> _CtxToken | _WsAuthFailed:
     if not AUTH_ENABLED:
         return _install_current_user(None)
 
-    # LLM conversation (streamed over this socket) always requires a signed-in
-    # account — browsing stays open without login, but chatting does not.
+    # LOCAL_MODE: 本地模式免登录（同 require_auth）。
+    from deeptutor.services.session.mysql_store import mysql_configured
+
+    if not mysql_configured():
+        return _install_current_user(None)
+
     token = ws.query_params.get("token") or ws.cookies.get(_COOKIE_NAME)
     payload = decode_token(token) if token else None
     if not payload:
