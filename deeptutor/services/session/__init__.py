@@ -40,24 +40,33 @@ def get_session_store() -> SessionStoreProtocol:
     """
     Return the active session store backend.
 
-    When MYSQL_HOST is configured, returns a MySQLSessionStore (conversation
-    records live in the shared MySQL database). When
-    integrations.pocketbase_url is configured, returns a PocketBaseSessionStore.
-    Otherwise falls back to the local SQLiteSessionStore (default, zero-config
-    behaviour).
+    Mode is chosen by the storage configuration:
+
+    - ``mysql`` (MySQL configured, web/server deployment): MySQLSessionStore.
+    - ``dual`` (MySQL configured + ``dual: true``, PC sync enabled): a
+      DualSessionStore — reads from local SQLite, writes to both.
+    - ``local`` (no MySQL, PC default): SQLiteSessionStore.
+
+    When integrations.pocketbase_url is configured, returns a
+    PocketBaseSessionStore instead.
     """
-    from deeptutor.services.session.mysql_store import mysql_configured
-
-    if mysql_configured():
-        from .mysql_store import get_mysql_session_store
-
-        return get_mysql_session_store()
     from deeptutor.services.pocketbase_client import is_pocketbase_enabled
 
     if is_pocketbase_enabled():
         from .pocketbase_store import PocketBaseSessionStore
 
         return PocketBaseSessionStore()
+    from deeptutor.services.session.mysql_store import storage_mode
+
+    mode = storage_mode()
+    if mode == "dual":
+        from .dual_store import get_dual_session_store
+
+        return get_dual_session_store()
+    if mode == "mysql":
+        from .mysql_store import get_mysql_session_store
+
+        return get_mysql_session_store()
     return get_sqlite_session_store()
 
 

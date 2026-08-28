@@ -738,10 +738,20 @@ class MySQLLearningStore:
 
 
 def get_learning_store() -> MySQLLearningStore | Any:
-    """Return the MySQL LearningStore when MySQL is configured, else the SQLite one."""
-    from deeptutor.services.session.mysql_store import mysql_configured
+    """Return the store for the active storage mode.
 
-    if mysql_configured():
+    - ``mysql`` — MySQL configured (web/server): MySQLLearningStore.
+    - ``dual`` — MySQL configured + ``dual: true`` (PC sync): DualLearningStore.
+    - ``local`` — no MySQL (PC default): the SQLite LearningStore.
+    """
+    from deeptutor.services.session.mysql_store import storage_mode
+
+    mode = storage_mode()
+    if mode == "dual":
+        from deeptutor.learning.dual_storage import get_dual_learning_store
+
+        return get_dual_learning_store()
+    if mode == "mysql":
         return MySQLLearningStore()
     from deeptutor.learning.storage import LearningStore
 

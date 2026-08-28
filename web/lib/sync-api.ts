@@ -3,7 +3,7 @@
 import { apiFetch, apiUrl } from "@/lib/api";
 
 export interface SyncStatus {
-  mode: "local" | "sync";
+  mode: "local" | "dual" | "mysql";
   synced: boolean;
   host?: string;
 }
@@ -18,7 +18,7 @@ export interface SyncReport {
 }
 
 export interface SyncEnableResponse {
-  mode: "sync";
+  mode: "dual";
   already_enabled?: boolean;
   report?: SyncReport;
 }

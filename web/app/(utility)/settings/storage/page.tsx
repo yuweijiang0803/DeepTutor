@@ -38,7 +38,8 @@ export default function StorageSettingsPage() {
       .catch(() => setLoggedIn(false));
   }, [refresh]);
 
-  const isSync = status?.mode === "sync";
+  const mode = status?.mode ?? "local";
+  const isSync = mode === "dual" || mode === "mysql";
 
   const handleEnable = async () => {
     setBusy("enabling");
@@ -86,7 +87,7 @@ export default function StorageSettingsPage() {
           <div className="flex-1">
             <div className="flex items-center gap-2">
               <h3 className="text-[15px] font-semibold">
-                {isSync ? "云端同步模式" : "本地模式"}
+                {isSync ? "已开启同步" : "本地存储"}
               </h3>
               <span
                 className={
@@ -101,9 +102,10 @@ export default function StorageSettingsPage() {
             </div>
             <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">
               {isSync
-                ? `数据保存在服务器${status?.host ? `（${status.host}）` : ""}，
-                  可跨设备访问，教师/家长可查看学情。`
-                : "会话、错题、精通路径都只保存在本机，无需登录。"}
+                ? mode === "dual"
+                  ? "数据同时保存在本机和服务器，可跨设备访问。"
+                  : `数据保存在服务器${status?.host ? `（${status.host}）` : ""}。`
+                : "会话、错题、精通路径只保存在本机，无需登录。"}
             </p>
           </div>
         </div>
@@ -130,7 +132,8 @@ export default function StorageSettingsPage() {
             <h3 className="text-[14px] font-semibold">开启同步</h3>
           </div>
           <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">
-            登录 XiaoZhi 账号后，把本地数据上传到学校服务器。之后的新数据会直接存入服务器。
+            登录 XiaoZhi 账号后开启同步：已有的本地数据会上传到学校服务器，
+            之后的数据会同时保存在本机和服务器（可跨设备、教师可查看学情）。
             服务器连接已由学校统一配置，无需手动填写。
           </p>
 
@@ -176,7 +179,7 @@ export default function StorageSettingsPage() {
             <h3 className="text-[14px] font-semibold">关闭同步</h3>
           </div>
           <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">
-            回到本地模式，之后数据只保存在本机。服务器上的数据默认保留，可勾选拉回。
+            关闭同步后，数据只保存在本机。服务器上已有的数据保留，可勾选拉回本地。
           </p>
           <label className="mt-4 flex items-center gap-2 text-[13px]">
             <input

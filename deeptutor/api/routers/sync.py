@@ -20,7 +20,7 @@ from deeptutor.services.config.runtime_settings import (
     load_mysql_settings,
     save_mysql_settings,
 )
-from deeptutor.services.session.mysql_store import mysql_configured
+from deeptutor.services.session.mysql_store import mysql_configured, storage_mode
 from deeptutor.services.sync import (
     migrate_local_to_server,
     migrate_server_to_local,
@@ -46,16 +46,17 @@ class SyncDisableRequest(BaseModel):
 
 
 def _current_mode() -> str:
-    return "sync" if mysql_configured() else "local"
+    return storage_mode()
 
 
 @router.get("/status")
 async def sync_status() -> dict[str, Any]:
     cfg = load_mysql_settings()
+    mode = storage_mode()
     return {
-        "mode": _current_mode(),
-        "synced": bool(cfg.get("enabled")) and bool(cfg.get("host")),
-        "host": cfg.get("host", "") if mysql_configured() else "",
+        "mode": mode,
+        "synced": mode in ("dual", "mysql"),
+        "host": cfg.get("host", "") if mode in ("dual", "mysql") else "",
     }
 
 
@@ -70,7 +71,7 @@ async def enable_sync(body: SyncEnableRequest) -> dict[str, Any]:
     deploy time (mysql.json / env vars), not entered by the end user — the
     user only signs in and flips the switch."""
     if mysql_configured():
-        return {"mode": "sync", "already_enabled": True}
+        return {"mode": storage_mode(), "already_enabled": True}
 
     cfg = load_mysql_settings()
     if not cfg.get("host"):
@@ -90,18 +91,19 @@ async def enable_sync(body: SyncEnableRequest) -> dict[str, Any]:
             "database": body.mysql.database or cfg.get("database") or "mixly",
         }
 
-    save_mysql_settings({**cfg, "enabled": True})
+    # Dual mode: existing local data is pushed up once, then every write goes
+    # to both local and MySQL.
+    save_mysql_settings({**cfg, "enabled": True, "dual": True})
 
     try:
         report = await migrate_local_to_server()
     except Exception as exc:
         # Roll the switch back so a failed migration never leaves the app
-        # half-switched (some data local, some on the server). The provisioned
-        # connection info is kept so the user can simply retry.
-        save_mysql_settings({**load_mysql_settings(), "enabled": False})
+        # half-switched. The provisioned connection info is kept.
+        save_mysql_settings({**load_mysql_settings(), "enabled": False, "dual": False})
         raise HTTPException(status_code=500, detail=f"Migration failed: {type(exc).__name__}: {exc}") from exc
 
-    return {"mode": "sync", "already_enabled": False, "report": report.to_dict()}
+    return {"mode": "dual", "already_enabled": False, "report": report.to_dict()}
 
 
 @router.post("/disable", dependencies=[Depends(require_signed_in)])
@@ -118,7 +120,7 @@ async def disable_sync(body: SyncDisableRequest) -> dict[str, Any]:
         except Exception as exc:
             raise HTTPException(status_code=500, detail=f"Pull-back failed: {type(exc).__name__}: {exc}") from exc
 
-    # Only flip the switch — keep the provisioned connection so re-enabling
-    # needs no re-entry.
-    save_mysql_settings({**load_mysql_settings(), "enabled": False})
+    # Only flip the switch off — keep the provisioned connection so
+    # re-enabling needs no re-entry.
+    save_mysql_settings({**load_mysql_settings(), "enabled": False, "dual": False})
     return {"mode": "local", "already_disabled": False, "report": report.to_dict() if report else None}

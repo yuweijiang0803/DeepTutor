@@ -82,6 +82,21 @@ def mysql_configured() -> bool:
     return bool(cfg.get("enabled")) and bool(cfg.get("host"))
 
 
+def storage_mode() -> str:
+    """Storage mode: ``"local"`` | ``"dual"`` | ``"mysql"``.
+
+    - ``local`` — no MySQL configured (PC default): everything stays in the
+      local SQLite store, no login needed.
+    - ``dual`` — MySQL configured with ``dual: true`` (PC sync enabled):
+      reads come from local SQLite, writes go to both local and MySQL.
+    - ``mysql`` — MySQL configured without dual (web/server deployment):
+      reads and writes all go to MySQL, login required.
+    """
+    if not mysql_configured():
+        return "local"
+    return "dual" if _mysql_settings().get("dual") else "mysql"
+
+
 _pool: Any = None
 
 

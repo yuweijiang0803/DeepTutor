@@ -1125,6 +1125,9 @@ class RuntimeSettingsService:
             "user": _string(settings.get("user")),
             "password": _string(settings.get("password")),
             "database": _string(settings.get("database")),
+            # PC dual-write mode: when true and enabled, reads come from local
+            # SQLite and writes go to both local and MySQL.
+            "dual": _coerce_bool(settings.get("dual"), False),
         }
 
     def _apply_mysql_process_overrides(self, settings: dict[str, Any]) -> dict[str, Any]:
