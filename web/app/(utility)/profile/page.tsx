@@ -112,11 +112,11 @@ export default function ProfilePage() {
       // Local mode (auth off) has no account until the user signs in to
       // enable sync — a signed-in local-mode user may still view their
       // profile; an unsigned visitor is bounced to the home page.
-      if (!status?.enabled && !status.authenticated) {
+      if (!status?.enabled && !status?.authenticated) {
         router.replace("/");
         return;
       }
-      if (!status.authenticated) {
+      if (!status?.authenticated) {
         router.replace("/login");
         return;
       }
