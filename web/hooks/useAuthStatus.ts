@@ -53,16 +53,31 @@ function loadAuthStatus(): Promise<AuthStatusState> {
   return inflight;
 }
 
+const listeners = new Set<() => void>();
+
+/**
+ * Ask every mounted ``useAuthStatus`` consumer to re-fetch the auth state
+ * (e.g. right after login/logout, so the sidebar flips without a page reload).
+ */
+export function notifyAuthStatusChanged(): void {
+  for (const listener of listeners) listener();
+}
+
 export function useAuthStatus(): AuthStatusState {
   const [state, setState] = useState<AuthStatusState>(INITIAL);
 
   useEffect(() => {
     let alive = true;
-    loadAuthStatus().then((next) => {
-      if (alive) setState(next);
-    });
+    const refresh = () => {
+      loadAuthStatus().then((next) => {
+        if (alive) setState(next);
+      });
+    };
+    refresh();
+    listeners.add(refresh);
     return () => {
       alive = false;
+      listeners.delete(refresh);
     };
   }, []);
 

@@ -1,17 +1,18 @@
 "use client";
 
 import { LogOut } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useTranslation } from "react-i18next";
 import { logout } from "@/lib/auth";
-import { useAuthStatus } from "@/hooks/useAuthStatus";
+import {
+  notifyAuthStatusChanged,
+  useAuthStatus,
+} from "@/hooks/useAuthStatus";
 
 interface LogoutButtonProps {
   collapsed?: boolean;
 }
 
 export function LogoutButton({ collapsed = false }: LogoutButtonProps) {
-  const router = useRouter();
   const { t } = useTranslation();
   const { enabled, authenticated } = useAuthStatus();
 
@@ -22,7 +23,9 @@ export function LogoutButton({ collapsed = false }: LogoutButtonProps) {
 
   async function handleLogout() {
     await logout();
-    router.replace("/login");
+    // Stay on the current page — just refresh the auth state everywhere so
+    // the sidebar flips to "not signed in" without a reload or redirect.
+    notifyAuthStatusChanged();
   }
 
   if (collapsed) {
