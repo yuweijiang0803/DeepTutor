@@ -1083,10 +1083,10 @@ class TurnRuntimeManager:
             except PermissionError as exc:
                 raise RuntimeError(str(exc)) from exc
         else:
-            # Non-admin users MUST end up with a concrete llm_selection so we
-            # never silently fall through to the global LLM client (which is
-            # configured from admin runtime settings). Admin keeps the existing behavior
-            # (None llm_selection → default config from admin scope).
+            # Non-admin users with an LLM grant get the first available model
+            # pinned. Without a grant they fall back to the global LLM config
+            # (the deployment default) so students can chat out of the box —
+            # except signed-out guests, who must log in first.
             from deeptutor.multi_user.context import get_current_user
             from deeptutor.multi_user.model_access import (
                 has_capability_access,
@@ -1095,23 +1095,23 @@ class TurnRuntimeManager:
 
             current_user = get_current_user()
             if not current_user.is_admin:
-                # Single gate, shared with the frontend lock and any HTTP
-                # surface: no usable LLM grant → a clear terminal error here
-                # instead of a silent fall-through to the global client.
-                if not has_capability_access("llm"):
+                if current_user.id == "guest":
                     raise RuntimeError(
-                        "No LLM model is assigned to your account. Please contact an administrator."
+                        "请先登录后再对话。",
                     )
-                # Pin the first granted-and-available model as the selection.
-                assigned_llms = [
-                    item
-                    for item in redacted_model_access(current_user.id).get("llm", [])
-                    if item.get("available")
-                ]
-                llm_selection = {
-                    "profile_id": assigned_llms[0].get("profile_id"),
-                    "model_id": assigned_llms[0].get("model_id"),
-                }
+                if has_capability_access("llm"):
+                    # Pin the first granted-and-available model as the selection.
+                    assigned_llms = [
+                        item
+                        for item in redacted_model_access(current_user.id).get("llm", [])
+                        if item.get("available")
+                    ]
+                    if assigned_llms:
+                        llm_selection = {
+                            "profile_id": assigned_llms[0].get("profile_id"),
+                            "model_id": assigned_llms[0].get("model_id"),
+                        }
+                # No grant → llm_selection stays None → global default config.
         if llm_selection:
             from deeptutor.multi_user.personal_models import merge_personal_llm_profiles
             from deeptutor.services.config import get_model_catalog_service
