@@ -21,22 +21,19 @@ export function ProfileLink({ collapsed = false }: ProfileLinkProps) {
     fetchAuthStatus().then(setStatus);
   }, []);
 
-  // Auth off (local storage, no login required yet): show a sign-in entry
-  // point — unless a real account is already signed in (ready to enable sync),
-  // in which case show the account below.
-  if (
-    status &&
-    !status.enabled &&
-    !(status.authenticated && status.username && status.username !== "local")
-  ) {
-    const href = `/login?redirect=${encodeURIComponent("/settings/storage")}`;
+  // Signed out → show a sign-in entry point on every storage mode. A real
+  // account that is signed in shows the profile link below instead.
+  if (status && !status.authenticated) {
+    const href = `/login?redirect=${encodeURIComponent(
+      window.location.pathname,
+    )}`;
     if (collapsed) {
       return (
         <Link
           href={href}
           className="rounded-lg p-2 text-[var(--muted-foreground)] transition-colors hover:bg-[var(--background)]/50 hover:text-[var(--foreground)]"
           aria-label="登录"
-          title="登录（开启同步）"
+          title="登录"
         >
           <LogIn size={18} strokeWidth={1.5} />
         </Link>
@@ -46,7 +43,7 @@ export function ProfileLink({ collapsed = false }: ProfileLinkProps) {
       <Link
         href={href}
         className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] text-[var(--muted-foreground)] transition-colors hover:bg-[var(--background)]/50 hover:text-[var(--foreground)]"
-        title="登录后可开启同步"
+        title="登录"
       >
         <LogIn size={16} strokeWidth={1.5} />
         <span>登录</span>
