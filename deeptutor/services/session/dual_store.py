@@ -67,7 +67,11 @@ class DualSessionStore:
     async def create_turn(self, session_id: str, capability: str = "") -> dict[str, Any]:
         result = await self._local.create_turn(session_id, capability)
         try:
-            await self._remote.create_turn(session_id, capability)
+            # Mirror with the SAME turn id so streamed events written later
+            # (append_turn_event) land on the matching server-side turn.
+            await self._remote.create_turn(
+                session_id, capability, turn_id=result["turn_id"]
+            )
         except Exception as exc:
             logger.warning("dual: create_turn sync failed: %s", exc)
         return result

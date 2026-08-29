@@ -450,10 +450,17 @@ class MySQLSessionStore:
     # Turns
     # ------------------------------------------------------------------
 
-    async def create_turn(self, session_id: str, capability: str = "") -> dict[str, Any]:
+    async def create_turn(
+        self,
+        session_id: str,
+        capability: str = "",
+        turn_id: str | None = None,
+    ) -> dict[str, Any]:
         pool = await get_mysql_pool()
         now = time.time()
-        turn_id = _new_turn_id()
+        # An explicit turn_id lets the dual store mirror the local turn's id so
+        # events written later land on the same turn server-side.
+        resolved_turn_id = turn_id or _new_turn_id()
         user_id = _current_user_id()
         async with pool.acquire() as conn:
             async with conn.cursor() as cur:
@@ -479,12 +486,12 @@ class MySQLSessionStore:
                                           created_at, updated_at, finished_at)
                     VALUES (%s, %s, %s, %s, 'running', '', %s, %s, NULL)
                     """,
-                    (turn_id, session_id, user_id, capability or "", now, now),
+                    (resolved_turn_id, session_id, user_id, capability or "", now, now),
                 )
             await conn.commit()
         return {
-            "id": turn_id,
-            "turn_id": turn_id,
+            "id": resolved_turn_id,
+            "turn_id": resolved_turn_id,
             "session_id": session_id,
             "capability": capability or "",
             "status": "running",
