@@ -1200,7 +1200,10 @@ class MySQLSessionStore:
                 return item
 
     async def find_notebook_entry(
-        self, question_id: str, session_id: str | None = None
+        self,
+        session_id: str,
+        question_id: str,
+        turn_id: str | None = None,
     ) -> dict[str, Any] | None:
         pool = await get_mysql_pool()
         user_id = _current_user_id()
@@ -1208,8 +1211,10 @@ class MySQLSessionStore:
             async with conn.cursor() as cur:
                 if session_id:
                     await cur.execute(
-                        "SELECT * FROM dt_notebook_entries WHERE user_id=%s AND question_id=%s AND session_id=%s LIMIT 1",
-                        (user_id, question_id, session_id),
+                        """SELECT * FROM dt_notebook_entries
+                           WHERE user_id=%s AND session_id=%s AND question_id=%s
+                             AND (%s = '' OR turn_id = %s) LIMIT 1""",
+                        (user_id, session_id, question_id, turn_id or "", turn_id or ""),
                     )
                 else:
                     await cur.execute(
