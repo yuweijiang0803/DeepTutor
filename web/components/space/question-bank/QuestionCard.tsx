@@ -157,6 +157,19 @@ export default function QuestionCard({
               className="text-[14px] leading-relaxed"
             />
           </div>
+          {entry.user_answer_images?.length ? (
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              {entry.user_answer_images.map((image) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={image.id}
+                  src={image.url}
+                  alt={image.filename}
+                  className="max-h-40 w-full rounded-md border border-[var(--border)] object-contain bg-white"
+                />
+              ))}
+            </div>
+          ) : null}
         </div>
 
         <div className="flex shrink-0 items-center gap-1">
