@@ -99,6 +99,22 @@ def local_admin_user() -> CurrentUser:
     )
 
 
+def guest_user() -> CurrentUser:
+    """Signed-out visitor identity.
+
+    Browsing (HTTP reads) is open to everyone — the guest resolves to no data
+    in MySQL-backed stores (a user_id nobody owns) and the local SQLite store
+    (which has no user partitioning). Admin operations reject guests, and the
+    chat composer gates sending on login.
+    """
+    return CurrentUser(
+        id="guest",
+        username="guest",
+        role="user",
+        scope=UserScope(kind="user", user_id="guest", root=(USERS_ROOT / "guest").resolve()),
+    )
+
+
 def scope_for_user(user_id: str, *, is_admin: bool) -> UserScope:
     if is_admin:
         return admin_scope()

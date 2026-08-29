@@ -276,30 +276,23 @@ async def require_auth(
         _install_current_user(None)
         return None
 
-    # LOCAL_MODE: 本地模式（未启用同步）免登录，解析为 local admin。
-    # 只有开启同步（数据要上服务器）才需要真实账号身份——那一步走
-    # ``require_signed_in``（见下）。
-    from deeptutor.services.session.mysql_store import mysql_configured
-
-    if not mysql_configured():
-        _install_current_user(None)
-        return None
-
+    # Browsing is open to signed-out visitors on every storage mode: they get
+    # a guest identity (no data in MySQL-backed stores, no admin access; the
+    # chat composer gates sending on login). ``require_signed_in`` below still
+    # demands a real account for operations that need one.
     token = _extract_token(authorization, dt_token)
     if not token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        from deeptutor.multi_user.paths import guest_user
+
+        _install_current_user(guest_user())
+        return None
 
     payload = decode_token(token)
     if not payload:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        from deeptutor.multi_user.paths import guest_user
+
+        _install_current_user(guest_user())
+        return None
 
     _install_current_user(payload)
     return payload
@@ -363,17 +356,14 @@ async def ws_require_auth(ws: WebSocket) -> _CtxToken | _WsAuthFailed:
     if not AUTH_ENABLED:
         return _install_current_user(None)
 
-    # LOCAL_MODE: 本地模式免登录（同 require_auth）。
-    from deeptutor.services.session.mysql_store import mysql_configured
-
-    if not mysql_configured():
-        return _install_current_user(None)
-
+    # Signed-out visitors may hold a socket for browsing; sending a message is
+    # gated by the chat composer's login prompt.
     token = ws.query_params.get("token") or ws.cookies.get(_COOKIE_NAME)
     payload = decode_token(token) if token else None
     if not payload:
-        await ws.close(code=4001)
-        return ws_auth_failed
+        from deeptutor.multi_user.paths import guest_user
+
+        return _install_current_user(guest_user())
 
     return _install_current_user(payload)
 

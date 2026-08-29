@@ -66,17 +66,14 @@ test("isCodexCallbackPath matches only the exact public callback path", () => {
   assert.equal(isCodexCallbackPath("/Auth/callback"), false);
 });
 
-test("proxy rewrites the exact callback before backend routing and auth gating", () => {
+test("proxy rewrites the exact callback before backend routing", () => {
   const source = readFileSync(path.resolve(process.cwd(), "proxy.ts"), "utf8");
   const callbackBranch = source.indexOf("if (isCodexCallbackPath(pathname))");
   const backendBranch = source.indexOf("if (isBackendPath(pathname))");
-  const authGate = source.indexOf("if (!AUTH_ENABLED");
 
   assert.notEqual(callbackBranch, -1);
   assert.notEqual(backendBranch, -1);
-  assert.notEqual(authGate, -1);
   assert.ok(callbackBranch < backendBranch);
-  assert.ok(callbackBranch < authGate);
   assert.match(
     source,
     /NextResponse\.rewrite\(\s*new URL\(\s*CODEX_CALLBACK_API_PATH \+ search,\s*API_BASE_URL,?\s*\),?\s*\)/,
