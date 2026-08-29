@@ -267,6 +267,13 @@ DEFAULT_CAPABILITIES: dict[str, object] = {
 # Format: {model_pattern: {capability: value}}
 # Patterns are matched with case-insensitive startswith
 MODEL_OVERRIDES: dict[str, dict[str, object]] = {
+    # Volcano Ark (Doubao Seed 2.0) serves images to vision-capable models.
+    # The deployment's chat model accepts image content, so mark it as such —
+    # otherwise image attachments are silently stripped and the model never
+    # sees the problem photo.
+    "doubao": {
+        "supports_vision": True,
+    },
     "deepseek": {
         "supports_response_format": False,
         "has_thinking_tags": True,
