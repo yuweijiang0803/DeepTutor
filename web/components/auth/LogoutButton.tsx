@@ -11,12 +11,11 @@ interface LogoutButtonProps {
 
 export function LogoutButton({ collapsed = false }: LogoutButtonProps) {
   const { t } = useTranslation();
-  const { enabled, authenticated } = useAuthStatus();
+  const { authenticated } = useAuthStatus();
 
-  // Show the sign-out affordance whenever an account is signed in — including
-  // local mode, where the login exists so the user can enable sync (without
-  // it, a leftover cookie would look like "no account but still chatting").
-  if (!enabled && !authenticated) return null;
+  // Sign-out only makes sense when actually signed in — an anonymous visitor
+  // gets the "登录" entry (ProfileLink) instead, never both at once.
+  if (!authenticated) return null;
 
   async function handleLogout() {
     await logout();
