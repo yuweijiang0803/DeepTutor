@@ -636,6 +636,11 @@ class AgenticChatPipeline:
                 has_deferred_tools=getattr(self, "_deferred_loader", None) is not None,
                 has_exec=getattr(self, "_exec_enabled", False),
                 has_code=getattr(self, "_exec_enabled", False),
+                has_image_attachment=any(
+                    getattr(att, "type", "") == "image"
+                    and getattr(att, "base64", "")
+                    for att in (context.attachments or [])
+                ),
             ),
             capability_owned=self._capability_owned_tools(context),
             exclusive=self._exclusive_capability_active(context),
@@ -1165,6 +1170,22 @@ class AgenticChatPipeline:
                     mime = getattr(first_image, "mime_type", "") or "image/png"
                     kwargs["image_base64"] = f"data:{mime};base64,{raw_b64}"
             kwargs["language"] = context.language or "zh"
+        elif tool_name == "extract_page_questions":
+            first_image = next(
+                (
+                    att
+                    for att in (context.attachments or [])
+                    if getattr(att, "type", "") == "image" and getattr(att, "base64", "")
+                ),
+                None,
+            )
+            if first_image is not None:
+                raw_b64 = first_image.base64
+                if raw_b64.startswith("data:"):
+                    kwargs["image_base64"] = raw_b64
+                else:
+                    mime = getattr(first_image, "mime_type", "") or "image/png"
+                    kwargs["image_base64"] = f"data:{mime};base64,{raw_b64}"
         for cap in self._active_loop_capabilities(context):
             kwargs = cap.augment_kwargs(tool_name, kwargs, context)
         return kwargs

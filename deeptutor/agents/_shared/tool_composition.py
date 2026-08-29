@@ -56,6 +56,7 @@ _CONDITIONAL_MOUNT_FLAGS: dict[str, str] = {
     "load_tools": "has_deferred_tools",
     "exec": "has_exec",
     "code_execution": "has_code",
+    "extract_page_questions": "has_image_attachment",
 }
 
 # Built-ins that survive an exclusive knowledge capability when other KBs are
@@ -142,6 +143,7 @@ class ToolMountFlags:
     has_deferred_tools: bool = False
     has_exec: bool = False
     has_code: bool = False
+    has_image_attachment: bool = False
 
 
 def compose_enabled_tools(
