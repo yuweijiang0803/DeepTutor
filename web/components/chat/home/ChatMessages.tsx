@@ -62,6 +62,10 @@ import {
   extractMessageSegments,
   leadingTraceEvents,
 } from "./AskUserOptions";
+import {
+  extractPageQuestions,
+  PageQuestionsCard,
+} from "./PageQuestionsCard";
 import { SetupCredentialCard } from "./SetupCredentialCard";
 import { extractSetupCredential } from "@/lib/setup-signals";
 import ContextReferenceTree, {
@@ -426,8 +430,18 @@ const AssistantMessage = memo(function AssistantMessage({
   const showResearchBody =
     Boolean(outlinePreview) && researchInProgress && Boolean(msg.content);
 
+  const pageQuestions = extractPageQuestions(msg.events);
+
   return (
     <>
+      {/* Page-photo question extraction: the tool returns per-question crops;
+          render the confirm card before the normal message body. */}
+      {pageQuestions ? (
+        <PageQuestionsCard
+          questions={pageQuestions}
+          sessionId={sessionId ?? ""}
+        />
+      ) : null}
       {/* Activity block pinned to the TOP: the status header
           ("DeepTutor Exploring… · 8s" → "DeepTutor responded. · 10s") with
           the exploring trace nested beneath it — expanded while DeepTutor is
