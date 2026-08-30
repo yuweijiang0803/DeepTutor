@@ -29,6 +29,27 @@ const { execFileSync } = require('child_process');
 const resourcesDir = path.join(__dirname, 'resources');
 fs.mkdirSync(resourcesDir, { recursive: true });
 
+// 跨平台构建：在 mac/Linux 上构建 Windows 版时，本机 node 是 mac/linux 二进制，
+// 复制过去 Windows 无法运行。所以 --win 时改为下载 Windows x64 node.exe。
+if (process.argv.includes('--win')) {
+  const ver = process.versions.node;
+  const url = `https://nodejs.org/dist/v${ver}/win-x64/node.exe`;
+  const dest = path.join(resourcesDir, 'node.exe');
+  console.log(`[bundle-node] downloading Windows node.exe v${ver} ...`);
+  (async () => {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`download failed: HTTP ${res.status} ${url}`);
+    const buf = Buffer.from(await res.arrayBuffer());
+    fs.writeFileSync(dest, buf);
+    fs.chmodSync(dest, 0o755);
+    console.log(`[bundle-node] saved ${dest} (${(buf.length / 1024 / 1024).toFixed(1)} MB)`);
+  })().catch((e) => {
+    console.error('[bundle-node] ERROR downloading Windows node:', e.message);
+    process.exit(1);
+  });
+  return;
+}
+
 // process.execPath is the node binary running this script.
 const src = process.execPath;
 const dest = path.join(resourcesDir, path.basename(src));
