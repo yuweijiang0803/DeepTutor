@@ -33,6 +33,10 @@ const STANDALONE = app.isPackaged
   : path.join(WEB_DIR, '.next', 'standalone');
 const PORT = Number(process.env.DESKTOP_PORT || 4782);
 const EXTERNAL_URL = process.env.WEB_URL || 'http://127.0.0.1:3782';
+// 默认后端：用户自己的服务器（数据存服务器）。前端 /api 请求由 proxy 转发
+// 到这里。部署/分发时可把此值改成正式后端域名；用户可用环境变量
+// DEEPTUTOR_API_BASE_URL 临时覆盖（如连本地后端调试）。
+const DEFAULT_BACKEND_URL = 'https://tutor.hourofai.cn';
 // Resolve the Node binary used to launch the standalone server.
 //  1. explicit override (DESKTOP_NODE_BIN)
 //  2. node bundled inside the package (works on machines with no system node)
@@ -58,6 +62,10 @@ let serverProc = null;
 function startStandaloneServer() {
   const serverJs = path.join(STANDALONE, 'server.js');
   if (!fs.existsSync(serverJs)) return false;
+  // 让 standalone 前端的 /api 请求默认连服务器（数据存服务器）；环境变量可覆盖。
+  if (!process.env.DEEPTUTOR_API_BASE_URL) {
+    process.env.DEEPTUTOR_API_BASE_URL = DEFAULT_BACKEND_URL;
+  }
   serverProc = spawn(NODE_BIN, [serverJs], {
     cwd: STANDALONE,
     env: { ...process.env, PORT: String(PORT), HOSTNAME: '127.0.0.1', NODE_ENV: 'production' },
