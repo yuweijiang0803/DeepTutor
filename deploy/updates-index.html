@@ -40,6 +40,8 @@
     const isArm = /arm64|aarch64/i.test(ua);
     const sysLabel = isMac ? (isArm ? "macOS (Apple 芯片 M1/M2/M3…)" : "macOS (Intel)")
       : isWin ? "Windows" : isLinux ? "Linux" : "未知系统";
+    const sysShort = isMac ? (isArm ? "Mac M1/M2" : "Mac Intel")
+      : isWin ? "Windows" : isLinux ? "Linux" : "本系统";
 
     function keyFor() {
       if (isMac) return isArm ? "mac_arm64" : "mac_x64";
@@ -64,15 +66,13 @@
     function render(versions) {
       const box = document.getElementById("versions");
       box.innerHTML = "";
-      // 最新版本在前；当前系统对应最新版 = 突出
-      const latest = versions[0] || {};
+      // 最新版本在前；当前系统类型在【每个版本】都突出（标在当前系统对应的按钮上）
       versions.forEach((v) => {
         const row = document.createElement("div");
-        const isLatest = v.version === latest.version;
-        const isCurrent = isLatest && !!v[myKey];
+        const isCurrent = !!v[myKey]; // 该版本有当前系统可用的下载 → 突出
         row.className = "row" + (isCurrent ? " current" : "");
         row.innerHTML = '<div class="ver">v' + v.version + "</div>" +
-          (isCurrent ? '<span class="tag">当前系统</span>' : "") +
+          (isCurrent ? '<span class="tag">' + sysShort + "</span>" : "") +
           '<div class="files"></div>';
         // 该版本可下载的文件（当前系统优先排前）
         const filesDiv = row.querySelector(".files");
