@@ -97,6 +97,9 @@ dist/
 web/dist/
 build/
 web/build/
+# Desktop app icons ARE source assets (electron-builder buildResources) —
+# keep them tracked even though generic "build/" is ignored above.
+!desktop/build/
 .open-next/
 **/.open-next/
 .wrangler/

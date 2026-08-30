@@ -6,7 +6,7 @@ appId: com.deeptutor.desktopshell
 productName: DeepTutor
 directories:
   output: dist-electron
-  # buildResources: build   # 放图标/entitlements 时再启用
+  buildResources: build   # 应用图标 build/icon.icns|icon.ico|icon.png
 
 files:
   - "main.js"
