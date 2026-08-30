@@ -75,6 +75,8 @@ function startStandaloneServer() {
     cwd: STANDALONE,
     env: { ...process.env, PORT: String(PORT), HOSTNAME: '127.0.0.1', NODE_ENV: 'production' },
     stdio: 'inherit',
+    // Windows 上隐藏 node.exe（控制台程序）的黑色终端窗口
+    windowsHide: true,
   });
   serverProc.on('exit', (code) => console.log(`[web-standalone] exited ${code}`));
   return true;
