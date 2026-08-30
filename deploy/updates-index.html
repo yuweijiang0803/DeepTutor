@@ -10,13 +10,10 @@
   .card { max-width: 560px; margin: 0 auto; background: #fff; border-radius: 16px;
           padding: 32px 28px; box-shadow: 0 8px 30px rgba(0,0,0,.08); }
   h1 { font-size: 20px; margin: 0 0 4px; text-align: center; }
-  .sys { color: #888; font-size: 13px; margin: 0 0 20px; text-align: center; }
+  .sub { color: #888; font-size: 13px; margin: 0 0 20px; text-align: center; }
   .row { display: flex; align-items: center; gap: 12px; border: 1px solid #e5e7eb;
-         border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
-  .row.current { border: 2px solid #2563eb; background: #eff6ff; }
+         border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; flex-wrap: wrap; }
   .ver { font-weight: 600; font-size: 14px; min-width: 56px; }
-  .tag { font-size: 11px; background: #2563eb; color: #fff; padding: 2px 8px;
-         border-radius: 999px; }
   .files { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
   .dl { font-size: 13px; color: #2563eb; text-decoration: none; border: 1px solid #2563eb;
         padding: 5px 12px; border-radius: 8px; }
@@ -27,92 +24,46 @@
 <body>
   <div class="card">
     <h1>DeepTutor 下载</h1>
-    <div class="sys" id="sys">正在检测当前系统…</div>
+    <div class="sub">选择你的系统版本下载</div>
     <div id="versions"></div>
     <div class="hint" id="hint"></div>
   </div>
   <script>
-    // 识别当前系统：mac(arm64/x64) / win / linux
-    // 架构优先用 URL 参数（app 内跳转带 process.arch，准确）；浏览器直接打开
-    // 时 UA 无法区分 mac M1/Intel（navigator.platform 恒 MacIntel），只能尽力。
-    const ua = navigator.userAgent;
-    const isMac = /Mac/i.test(ua);
-    const isWin = /Win/i.test(ua);
-    const isLinux = !isMac && !isWin && /Linux/i.test(ua);
-    const urlArch = new URLSearchParams(location.search).get('arch');
-    // 只有带准确 arch 参数（app 内跳转）才细分 mac 芯片；否则不猜测
-    const macArchKnown = isMac && !!urlArch;
-    const isArm = urlArch
-      ? urlArch === 'arm64' || urlArch === 'aarch64'
-      : /arm64|aarch64/i.test(ua);
-    const sysLabel = isMac
-      ? macArchKnown
-        ? (isArm ? "macOS (Apple 芯片 M1/M2/M3…)" : "macOS (Intel)")
-        : "macOS"
-      : isWin ? "Windows" : isLinux ? "Linux" : "未知系统";
-    const sysShort = isMac
-      ? macArchKnown
-        ? (isArm ? "Mac M1/M2" : "Mac Intel")
-        : "macOS"
-      : isWin ? "Windows" : isLinux ? "Linux" : "本系统";
-
-    function keyFor() {
-      if (isMac) return macArchKnown ? (isArm ? "mac_arm64" : "mac_x64") : "mac_arm64";
-      if (isWin) return "win";
-      return "linux";
-    }
-    const myKey = keyFor();
-
     async function load() {
-      document.getElementById("sys").textContent = "当前系统：" + sysLabel;
       try {
         const res = await fetch("versions.json", { cache: "no-store" });
         if (!res.ok) throw new Error("no versions.json");
         const data = await res.json();
         render(data.versions || []);
-        const hint = document.getElementById("hint");
-        if (isMac) {
-          hint.textContent =
-            "mac 版是免安装文件：下载 dmg → 双击打开 → 把 DeepTutor.app 拖到桌面/应用程序即可直接运行。" +
-            (!macArchKnown
-              ? " 从 App 内\"去下载\"跳转会准确识别你的芯片（M1 或 Intel）。"
-              : "");
-        } else if (isWin) {
-          hint.textContent = "Windows 版：下载 exe 安装后自动升级；首次运行如见 SmartScreen 提示，点\"仍要运行\"。";
-        } else if (isLinux) {
-          hint.textContent = "Linux 版：下载 AppImage 后赋予执行权限即可运行。";
-        }
       } catch (e) {
         document.getElementById("versions").innerHTML =
           '<div style="color:#e11d48;font-size:13px">无法读取版本列表，请刷新重试。</div>';
       }
+      document.getElementById("hint").textContent =
+        "mac 版是免安装文件：下载 dmg → 双击打开 → 把 DeepTutor.app 拖到桌面/应用程序即可直接运行。" +
+        " 请按你的芯片选择：M1/M2/M3 等选 Mac M1/M2，Intel 芯片选 Mac Intel。" +
+        " Windows 版下载 exe 安装后自动升级（SmartScreen 提示点\"仍要运行\"）。";
     }
 
     function render(versions) {
       const box = document.getElementById("versions");
       box.innerHTML = "";
-      // 最新版本在前；当前系统类型在【每个版本】都突出（标在当前系统对应的按钮上）
       versions.forEach((v) => {
         const row = document.createElement("div");
-        const isCurrent = !!v[myKey]; // 该版本有当前系统可用的下载 → 突出
-        row.className = "row" + (isCurrent ? " current" : "");
+        row.className = "row";
         row.innerHTML = '<div class="ver">v' + v.version + "</div>" +
-          (isCurrent ? '<span class="tag">' + sysShort + "</span>" : "") +
           '<div class="files"></div>';
-        // 该版本可下载的文件（当前系统优先排前）
         const filesDiv = row.querySelector(".files");
-        const order = [myKey, "mac_arm64", "mac_x64", "win", "linux"];
-        const seen = new Set();
-        order.forEach((k) => {
-          if (seen.has(k)) return;
-          seen.add(k);
+        // 固定顺序：Mac M1/M2、Mac Intel、Windows、Linux（区分芯片，用户自选）
+        const order = [
+          ["mac_arm64", "Mac M1/M2"],
+          ["mac_x64", "Mac Intel"],
+          ["win", "Windows"],
+          ["linux", "Linux"],
+        ];
+        order.forEach(([k, label]) => {
           const url = v[k];
           if (!url) return;
-          const label =
-            k === "mac_arm64" ? (macArchKnown ? "Mac M1/M2" : "macOS")
-            : k === "mac_x64" ? (macArchKnown ? "Mac Intel" : "")
-            : k === "win" ? "Windows" : "Linux";
-          if (!label) return; // 芯片未知时不显示误导的 Intel 按钮
           const a = document.createElement("a");
           a.className = "dl";
           a.href = url;
