@@ -110,7 +110,10 @@ function setupAutoUpdater() {
           cancelId: 1,
         });
         if (response === 0) {
-          shell.openExternal('http://tutor.hourofai.cn/updates/');
+          // 带准确架构参数（浏览器 UA 无法区分 mac M1/Intel，process.arch 可靠）
+          shell.openExternal(
+            'http://tutor.hourofai.cn/updates/?arch=' + process.arch,
+          );
         }
       });
     } else {
