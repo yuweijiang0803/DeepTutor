@@ -3223,6 +3223,8 @@
   "Notebook exported": "笔记本已导出",
   "Immersive Reading": "沉浸式阅读",
   "Read a document with the assistant, cited line by line": "与助手一起读文档，逐句给出出处",
+  "Question Review": "错题整理",
+  "Organise the question bank: file mistakes into categories": "整理错题库：把错题归档进分类",
   "Immersive reading": "沉浸式阅读",
   "Open a document to read": "打开一份文档开始阅读",
   "Drop a PDF, EPUB, Word, slide deck or text file here. The assistant reads it with you and cites what it uses.": "把 PDF、EPUB、Word、幻灯片或文本文件拖到这里。助手会和你一起读，并标明它引用了哪里。",

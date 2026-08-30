@@ -17,6 +17,7 @@ import {
   BrainCircuit,
   CircleHelp,
   Clapperboard,
+  ClipboardList,
   Code2,
   Compass,
   Database,
@@ -333,6 +334,17 @@ const CAPABILITIES: CapabilityDef[] = [
     // these are the extra tools the assistant may also reach for while reading.
     allowedTools: ["web_search", "code_execution", "reason"],
     defaultTools: [],
+  },
+  {
+    value: "question_review",
+    label: "Question Review",
+    description: "Organise the question bank: file mistakes into categories",
+    icon: ClipboardList,
+    // The question_bank tool auto-mounts server-side in this mode; these are
+    // the extra optional tools the assistant may reach for while organising.
+    allowedTools: ["web_search", "reason"],
+    defaultTools: [],
+    secondary: true,
   },
 ];
 

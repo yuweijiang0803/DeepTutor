@@ -27,6 +27,10 @@ _CAPABILITY_DESCRIPTIONS: dict[str, dict[str, str]] = {
         "en": "Structured mastery-based learning with spaced repetition.",
         "zh": "结构化掌握式学习，结合间隔复习。",
     },
+    "question_review": {
+        "en": "Organise the question bank: file wrong answers into categories and add new mistakes when asked.",
+        "zh": "整理错题：归档错题到分类、新建分类，按要求录入新错题。",
+    },
     "visualize": {
         "en": "Create visual explanations such as SVG, charts, Mermaid, HTML, or Manim.",
         "zh": "生成 SVG、图表、Mermaid、HTML 或 Manim 等可视化讲解。",

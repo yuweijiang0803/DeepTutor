@@ -14,6 +14,7 @@ from deeptutor.capabilities.marginnote4 import MarginNoteCapability
 from deeptutor.capabilities.mastery import MasteryLoopCapability
 from deeptutor.capabilities.obsidian import ObsidianCapability
 from deeptutor.capabilities.protocol import LoopCapability
+from deeptutor.capabilities.question_review import QuestionReviewLoopCapability
 from deeptutor.capabilities.reading import ReadingCapability
 from deeptutor.capabilities.setup import SetupCapability
 from deeptutor.capabilities.solve import SolveLoopCapability
@@ -29,6 +30,7 @@ LOOP_CAPABILITIES: tuple[LoopCapability, ...] = (
     AskQuestionsLoopCapability(),
     MasteryLoopCapability(),
     SolveLoopCapability(),
+    QuestionReviewLoopCapability(),
     ObsidianCapability(),
     MarginNoteCapability(),
     SubagentCapability(),
