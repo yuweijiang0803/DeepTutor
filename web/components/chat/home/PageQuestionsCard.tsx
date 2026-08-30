@@ -213,6 +213,7 @@ function CropImageModal({
   const [mode, setMode] = useState<"crop" | "pan">("crop");
   const [activeMode, setActiveMode] = useState<DragMode | null>(null);
   const [panning, setPanning] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [base, setBase] = useState({ w: 0, h: 0 });
@@ -239,6 +240,7 @@ function CropImageModal({
   const handleLoad = () => {
     const imgEl = imgRef.current;
     if (!imgEl) return;
+    setLoadError(false);
     const scale = Math.min(
       viewSize.w / imgEl.naturalWidth,
       viewSize.h / imgEl.naturalHeight,
@@ -459,55 +461,77 @@ function CropImageModal({
           onPointerCancel={handlePointerUp}
           onDoubleClick={resetView}
         >
-          {base.w === 0 ? (
-            <div className="absolute inset-0 flex items-center justify-center text-[12px] text-[var(--muted-foreground)]">
+          {/*
+            图片必须始终挂载，onLoad 才会触发；加载完成前 wrapper 尺寸为 0，
+            "加载中"提示作为覆盖层显示在上方。
+          */}
+          <div
+            className="absolute"
+            style={{
+              left: base.w ? pan.x : 0,
+              top: base.w ? pan.y : 0,
+              width: base.w ? dispW : 0,
+              height: base.w ? dispH : 0,
+            }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              ref={imgRef}
+              src={src}
+              alt="裁剪区域"
+              draggable={false}
+              onLoad={handleLoad}
+              onError={() => setLoadError(true)}
+              className="pointer-events-none block h-full w-full"
+            />
+
+            {sel && sel.w > 0.005 && sel.h > 0.005 ? (
+              <div
+                className="pointer-events-none absolute border-2 border-[var(--primary)]"
+                style={{
+                  left: `${sel.x * 100}%`,
+                  top: `${sel.y * 100}%`,
+                  width: `${sel.w * 100}%`,
+                  height: `${sel.h * 100}%`,
+                }}
+              >
+                {/* 选区外遮罩（box-shadow 向四周扩散，由父级 overflow-hidden 裁剪） */}
+                <div
+                  className="absolute inset-0"
+                  style={{ boxShadow: "0 0 0 9999px rgba(0,0,0,0.55)" }}
+                />
+                {HANDLES.map((hd) => (
+                  <div
+                    key={hd.mode}
+                    className="absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-[3px] border border-[var(--primary)] bg-white shadow"
+                    style={{ left: hd.left, top: hd.top }}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                <span className="rounded-md bg-black/55 px-2 py-1 text-[12px] text-white">
+                  在图片上拖动选择裁剪区域
+                </span>
+              </div>
+            )}
+          </div>
+
+          {base.w === 0 && !loadError && (
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-[12px] text-[var(--muted-foreground)]">
               加载图片中…
             </div>
-          ) : (
-            <div
-              className="absolute"
-              style={{ left: pan.x, top: pan.y, width: dispW, height: dispH }}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                ref={imgRef}
-                src={src}
-                alt="裁剪区域"
-                draggable={false}
-                onLoad={handleLoad}
-                className="pointer-events-none block h-full w-full"
-              />
-
-              {sel && sel.w > 0.005 && sel.h > 0.005 ? (
-                <div
-                  className="pointer-events-none absolute border-2 border-[var(--primary)]"
-                  style={{
-                    left: `${sel.x * 100}%`,
-                    top: `${sel.y * 100}%`,
-                    width: `${sel.w * 100}%`,
-                    height: `${sel.h * 100}%`,
-                  }}
-                >
-                  {/* 选区外遮罩（box-shadow 向四周扩散，由父级 overflow-hidden 裁剪） */}
-                  <div
-                    className="absolute inset-0"
-                    style={{ boxShadow: "0 0 0 9999px rgba(0,0,0,0.55)" }}
-                  />
-                  {HANDLES.map((hd) => (
-                    <div
-                      key={hd.mode}
-                      className="absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-[3px] border border-[var(--primary)] bg-white shadow"
-                      style={{ left: hd.left, top: hd.top }}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                  <span className="rounded-md bg-black/55 px-2 py-1 text-[12px] text-white">
-                    在图片上拖动选择裁剪区域
-                  </span>
-                </div>
-              )}
+          )}
+          {loadError && base.w === 0 && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-[12px] text-[var(--muted-foreground)]">
+              <span>图片加载失败</span>
+              <button
+                type="button"
+                onClick={onCancel}
+                className="rounded-lg border border-[var(--border)] px-3 py-1 text-[12px] transition-colors hover:bg-[var(--muted)]"
+              >
+                关闭
+              </button>
             </div>
           )}
         </div>
