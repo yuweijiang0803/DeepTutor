@@ -42,6 +42,17 @@ class QuestionReviewLoopCapability:
         _ = (context, final_text)
         return None
 
+    def augment_kwargs(
+        self,
+        tool_name: str,
+        kwargs: dict[str, Any],
+        context: UnifiedContext,
+    ) -> dict[str, Any]:
+        """No per-tool injection needed: the pipeline already supplies
+        ``question_bank``'s ``_session_id`` for every turn."""
+        _ = (tool_name, context)
+        return kwargs
+
     def pre_loop_seed(self, context: UnifiedContext) -> str:
         _ = context
         return ""

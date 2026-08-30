@@ -35,6 +35,15 @@ def test_system_block_inactive_returns_none() -> None:
     assert loop.system_block(ctx, language="zh-CN", prompts={}) is None
 
 
+def test_augment_kwargs_passes_through() -> None:
+    # The pipeline calls augment_kwargs on every active loop capability
+    # (agentic_pipeline.py:1194); this one must not blow up or mutate kwargs.
+    loop = QuestionReviewLoopCapability()
+    ctx = UnifiedContext(session_id="s", language="zh-CN", metadata={})
+    kwargs = {"action": "add", "question": "x"}
+    assert loop.augment_kwargs("question_bank", kwargs, ctx) is kwargs
+
+
 def test_capability_manifest() -> None:
     cap = QuestionReviewCapability()
     assert cap.manifest.name == "question_review"
