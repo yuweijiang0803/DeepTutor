@@ -12,6 +12,72 @@ import {
   X,
 } from "lucide-react";
 import { upsertNotebookEntry } from "@/lib/notebook-api";
+import { apiFetch, apiUrl } from "@/lib/api";
+
+/** 调 /api/v1/image/scan-enhance：整页图 → 纠斜 + 自适应二值化图。 */
+async function scanEnhanceImage(dataUrl: string, c: number): Promise<string> {
+  const res = await apiFetch(apiUrl("/api/v1/image/scan-enhance"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ image_data_url: dataUrl, c }),
+  });
+  if (!res.ok) {
+    let detail = "";
+    try {
+      const body = (await res.json()) as { detail?: unknown };
+      if (typeof body?.detail === "string") detail = body.detail;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(detail || `扫描增强失败 (${res.status})`);
+  }
+  const data = (await res.json()) as { image_data_url: string };
+  return data.image_data_url;
+}
+
+function imageElementToDataUrl(img: HTMLImageElement): string {
+  const c = document.createElement("canvas");
+  c.width = img.naturalWidth;
+  c.height = img.naturalHeight;
+  const ctx = c.getContext("2d");
+  if (!ctx) return img.src;
+  ctx.drawImage(img, 0, 0);
+  return c.toDataURL("image/png");
+}
+
+function loadImage(dataUrl: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("无法加载处理后的图片"));
+    img.src = dataUrl;
+  });
+}
+
+/** 从（已增强的）整页图上按归一化选框裁出题目图。 */
+function cropFromImage(img: HTMLImageElement, sel: CropSelection): string {
+  const nw = img.naturalWidth;
+  const nh = img.naturalHeight;
+  const w = Math.max(1, Math.round(sel.w * nw));
+  const h = Math.max(1, Math.round(sel.h * nh));
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext("2d");
+  if (!ctx) return "";
+  ctx.drawImage(
+    img,
+    Math.round(sel.x * nw),
+    Math.round(sel.y * nh),
+    w,
+    h,
+    0,
+    0,
+    w,
+    h,
+  );
+  return c.toDataURL("image/png");
+}
 
 export interface PageQuestion {
   number: number;
@@ -193,7 +259,7 @@ const HANDLES: Array<{ mode: DragMode; left: string; top: string }> = [
 
 const MAX_ZOOM = 8;
 
-/** 扫描效果阈值范围（亮度低于该值 → 黑，否则 → 白）。 */
+/** 扫描效果深浅调节范围（映射到后端自适应阈值的 C 参数）。 */
 const SCAN_THRESHOLD_MIN = 60;
 const SCAN_THRESHOLD_MAX = 220;
 const SCAN_THRESHOLD_DEFAULT = 150;
@@ -214,12 +280,13 @@ function CropImageModal({
   onConfirm: (dataUrl: string) => void;
 }) {
   const imgRef = useRef<HTMLImageElement>(null);
-  const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const [sel, setSel] = useState<CropSelection | null>(initSelection ?? null);
   const [mode, setMode] = useState<"crop" | "pan">("crop");
   const [scanMode, setScanMode] = useState(false);
   const [threshold, setThreshold] = useState(SCAN_THRESHOLD_DEFAULT);
+  const [processing, setProcessing] = useState(false);
+  const [error, setError] = useState("");
   const [activeMode, setActiveMode] = useState<DragMode | null>(null);
   const [panning, setPanning] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -312,28 +379,6 @@ function CropImageModal({
     return () => el.removeEventListener("wheel", onWheel);
   }, [zoom, pan, base, viewSize]);
 
-  // 扫描效果预览：按阈值对原图做二值化，画到覆盖在 img 上的 canvas
-  useEffect(() => {
-    const cv = previewCanvasRef.current;
-    const imgEl = imgRef.current;
-    if (!scanMode || !cv || !imgEl || base.w === 0) return;
-    cv.width = Math.max(1, Math.round(dispW));
-    cv.height = Math.max(1, Math.round(dispH));
-    const ctx = cv.getContext("2d");
-    if (!ctx) return;
-    ctx.clearRect(0, 0, cv.width, cv.height);
-    ctx.drawImage(imgEl, 0, 0, cv.width, cv.height);
-    const data = ctx.getImageData(0, 0, cv.width, cv.height);
-    const px = data.data;
-    const t = threshold;
-    for (let i = 0; i < px.length; i += 4) {
-      const lum = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
-      const v = lum < t ? 0 : 255;
-      px[i] = px[i + 1] = px[i + 2] = v;
-    }
-    ctx.putImageData(data, 0, 0);
-  }, [scanMode, threshold, src, base, zoom, dispW, dispH]);
-
   const normPoint = (e: React.PointerEvent) => {
     const rect = imgRef.current!.getBoundingClientRect();
     return {
@@ -385,11 +430,37 @@ function CropImageModal({
     setPanning(false);
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     const imgEl = imgRef.current;
     if (!imgEl || !sel) return;
     const nw = imgEl.naturalWidth;
     const nh = imgEl.naturalHeight;
+
+    if (scanMode) {
+      // 扫描效果：整页/小图 → 后端纠斜 + 自适应二值化 → 按选框裁出题目
+      setProcessing(true);
+      setError("");
+      try {
+        const sourceDataUrl = fromPage ? imageElementToDataUrl(imgEl) : src;
+        // 阈值滑条映射到自适应阈值的 C（越大越白；滑条越大越黑 → C 越小）
+        const c = Math.round(
+          32 -
+            ((threshold - SCAN_THRESHOLD_MIN) /
+              (SCAN_THRESHOLD_MAX - SCAN_THRESHOLD_MIN)) *
+              27,
+        );
+        const enhanced = await scanEnhanceImage(sourceDataUrl, c);
+        const enhancedImg = await loadImage(enhanced);
+        const out = cropFromImage(enhancedImg, sel);
+        if (out) onConfirm(out);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setProcessing(false);
+      }
+      return;
+    }
+
     const x = Math.round(sel.x * nw);
     const y = Math.round(sel.y * nh);
     const w = Math.max(1, Math.round(sel.w * nw));
@@ -400,18 +471,6 @@ function CropImageModal({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.drawImage(imgEl, x, y, w, h, 0, 0, w, h);
-    if (scanMode) {
-      // 扫描效果：按阈值二值化（亮度 < threshold → 黑，否则 → 白）
-      const data = ctx.getImageData(0, 0, w, h);
-      const px = data.data;
-      const t = threshold;
-      for (let i = 0; i < px.length; i += 4) {
-        const lum = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
-        const v = lum < t ? 0 : 255;
-        px[i] = px[i + 1] = px[i + 2] = v;
-      }
-      ctx.putImageData(data, 0, 0);
-    }
     onConfirm(canvas.toDataURL("image/png"));
   };
 
@@ -513,7 +572,7 @@ function CropImageModal({
         {scanMode && (
           <div className="mb-2 flex shrink-0 items-center gap-2">
             <span className="text-[11px] text-[var(--muted-foreground)]">
-              阈值
+              深浅
             </span>
             <input
               type="range"
@@ -521,6 +580,7 @@ function CropImageModal({
               max={SCAN_THRESHOLD_MAX}
               value={threshold}
               onChange={(e) => setThreshold(Number(e.target.value))}
+              title="偏右更黑（打印更清晰），偏左保留浅笔迹"
               className="min-w-0 flex-1 accent-[var(--primary)]"
             />
             <span className="w-8 text-right text-[11px] tabular-nums text-[var(--muted-foreground)]">
@@ -564,13 +624,13 @@ function CropImageModal({
               onLoad={handleLoad}
               onError={() => setLoadError(true)}
               className="pointer-events-none block h-full w-full"
+              style={{
+                // 扫描效果预览的近似（真正的自适应二值化由确认时的后端完成）
+                filter: scanMode
+                  ? "grayscale(1) contrast(1.4) brightness(1.05)"
+                  : undefined,
+              }}
             />
-            {scanMode && (
-              <canvas
-                ref={previewCanvasRef}
-                className="pointer-events-none absolute inset-0"
-              />
-            )}
 
             {sel && sel.w > 0.005 && sel.h > 0.005 ? (
               <div
@@ -627,19 +687,23 @@ function CropImageModal({
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-[13px] text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)]"
+            disabled={processing}
+            className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-[13px] text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)] disabled:opacity-50"
           >
             取消
           </button>
           <button
             type="button"
-            onClick={handleConfirm}
-            disabled={!canConfirm}
+            onClick={() => void handleConfirm()}
+            disabled={!canConfirm || processing}
             className="rounded-lg bg-[var(--accent)] px-3 py-1.5 text-[13px] font-medium text-[var(--accent-foreground)] disabled:opacity-50"
           >
-            确认裁剪
+            {processing ? "处理中…" : "确认裁剪"}
           </button>
         </div>
+        {error && (
+          <p className="mt-2 shrink-0 text-[12px] text-red-500">{error}</p>
+        )}
       </div>
     </div>
   );
