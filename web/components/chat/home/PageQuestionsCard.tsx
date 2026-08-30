@@ -8,6 +8,7 @@ import {
   Move,
   RotateCcw,
   Save,
+  Scan,
   X,
 } from "lucide-react";
 import { upsertNotebookEntry } from "@/lib/notebook-api";
@@ -192,6 +193,9 @@ const HANDLES: Array<{ mode: DragMode; left: string; top: string }> = [
 
 const MAX_ZOOM = 8;
 
+/** 扫描效果滤镜：灰度 + 增强对比 + 提亮，背景发白便于打印。 */
+const SCAN_FILTER = "grayscale(1) contrast(1.45) brightness(1.08)";
+
 function CropImageModal({
   src,
   initSelection,
@@ -211,6 +215,7 @@ function CropImageModal({
   const viewportRef = useRef<HTMLDivElement>(null);
   const [sel, setSel] = useState<CropSelection | null>(initSelection ?? null);
   const [mode, setMode] = useState<"crop" | "pan">("crop");
+  const [scanMode, setScanMode] = useState(false);
   const [activeMode, setActiveMode] = useState<DragMode | null>(null);
   const [panning, setPanning] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -368,6 +373,7 @@ function CropImageModal({
     canvas.height = h;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+    if (scanMode) ctx.filter = SCAN_FILTER;
     ctx.drawImage(imgEl, x, y, w, h, 0, 0, w, h);
     onConfirm(canvas.toDataURL("image/png"));
   };
@@ -448,6 +454,18 @@ function CropImageModal({
           >
             <RotateCcw size={12} /> 重置视图
           </button>
+          <button
+            type="button"
+            onClick={() => setScanMode((v) => !v)}
+            title="灰度+增强对比，背景发白，方便打印"
+            className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11.5px] transition-colors ${
+              scanMode
+                ? "border-[var(--primary)]/60 bg-[var(--primary)]/10 text-[var(--primary)]"
+                : "border-[var(--border)] text-[var(--muted-foreground)] hover:bg-[var(--muted)]"
+            }`}
+          >
+            <Scan size={12} /> 扫描效果
+          </button>
           {zoom > 1.01 && (
             <span className="text-[11px] text-[var(--muted-foreground)]">
               {Math.round(zoom * 100)}%
@@ -490,6 +508,7 @@ function CropImageModal({
               onLoad={handleLoad}
               onError={() => setLoadError(true)}
               className="pointer-events-none block h-full w-full"
+              style={{ filter: scanMode ? SCAN_FILTER : undefined }}
             />
 
             {sel && sel.w > 0.005 && sel.h > 0.005 ? (
