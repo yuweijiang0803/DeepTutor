@@ -48,7 +48,12 @@ function resolveNodeBin() {
   }
   if (app.isPackaged) {
     const base = path.join(process.resourcesPath, 'node');
-    for (const cand of [base, `${base}.exe`]) {
+    // Windows 优先 node.exe（避免命中误打包进来的无扩展名 mac node）
+    const cands =
+      process.platform === 'win32'
+        ? [`${base}.exe`, base]
+        : [base, `${base}.exe`];
+    for (const cand of cands) {
       if (fs.existsSync(cand)) return cand;
     }
   }

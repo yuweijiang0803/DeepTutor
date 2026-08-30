@@ -32,6 +32,14 @@ fs.mkdirSync(resourcesDir, { recursive: true });
 // 跨平台构建：在 mac/Linux 上构建 Windows 版时，本机 node 是 mac/linux 二进制，
 // 复制过去 Windows 无法运行。所以 --win 时改为下载 Windows x64 node.exe。
 if (process.argv.includes('--win')) {
+  // 清理之前复制进来的本机（mac/linux）node，避免它被一并打包进 win 包
+  for (const f of ['node', 'node.exe']) {
+    const p = path.join(resourcesDir, f);
+    if (fs.existsSync(p)) {
+      fs.rmSync(p, { force: true });
+      console.log(`[bundle-node] removed ${p}`);
+    }
+  }
   const ver = process.versions.node;
   const url = `https://nodejs.org/dist/v${ver}/win-x64/node.exe`;
   const dest = path.join(resourcesDir, 'node.exe');
