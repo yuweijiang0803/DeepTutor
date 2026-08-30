@@ -60,6 +60,14 @@ win:
   # certificateFile: ./cert.pfx         # Windows 代码签名证书
   # certificatePassword: ${WIN_CERT_PASSWORD}
 
+# Windows 安装器：向导式（可选安装路径），而非一键安装
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+
 linux:
   target:
     - target: AppImage
