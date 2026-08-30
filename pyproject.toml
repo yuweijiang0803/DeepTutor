@@ -142,6 +142,9 @@ server = [
     "json-repair>=0.57.0,<1.0.0",
     "croniter>=6.0.0,<7.0.0",
     "psutil>=5.9.0,<8.0.0",
+    # Scan-enhance endpoint (deskew + adaptive binarization) for the crop
+    # modal's "scan effect". Headless build: no GUI runtime needed on the server.
+    "opencv-python-headless>=4.9.0,<5.0.0",
 ]
 
 # Partner channel SDKs. Mirrors requirements/partners.txt.

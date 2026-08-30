@@ -384,6 +384,7 @@ from deeptutor.api.routers import (
     quiz_judge,
     reading,
     reading_extensions,
+    image_tools,
     sessions,
     settings,
     skills,
@@ -473,6 +474,12 @@ app.include_router(
     question_notebook.router,
     prefix="/api/v1/question-notebook",
     tags=["question-notebook"],
+    dependencies=_auth,
+)
+app.include_router(
+    image_tools.router,
+    prefix="/api/v1/image",
+    tags=["image"],
     dependencies=_auth,
 )
 app.include_router(

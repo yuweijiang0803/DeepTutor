@@ -34,3 +34,7 @@ croniter>=6.0.0,<7.0.0
 # Process-tree memory readings behind /api/v1/system/memory. Imported lazily
 # with a /proc fallback, so it is soft rather than required.
 psutil>=5.9.0,<8.0.0
+
+# --- Scan enhancement (crop modal "scan effect") ---
+# Deskew + denoise + adaptive binarization. Headless build: no GUI runtime.
+opencv-python-headless>=4.9.0,<5.0.0

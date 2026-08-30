@@ -170,7 +170,8 @@ async def test_bookmark_round_trip(store: SQLiteSessionStore) -> None:
 @pytest.mark.asyncio
 async def test_add_writes_a_new_entry_and_files_it(store: SQLiteSessionStore) -> None:
     session_id = await _seed(store)
-    before = (await store.question_bank_stats())["total"]
+    before_total = (await store.question_bank_stats())["total"]
+    before_wrong = (await store.question_bank_stats())["wrong"]
 
     outcome = await run_question_bank(
         action="add",
@@ -190,8 +191,8 @@ async def test_add_writes_a_new_entry_and_files_it(store: SQLiteSessionStore) ->
     assert outcome.summary["created_category"] is True
 
     stats = await store.question_bank_stats()
-    assert stats["total"] == before + 1
-    assert stats["wrong"] == before + 1
+    assert stats["total"] == before_total + 1
+    assert stats["wrong"] == before_wrong + 1
 
     listing = await run_question_bank(action="list", category="一元二次方程错题", store=store)
     assert listing.summary["count"] == 1
