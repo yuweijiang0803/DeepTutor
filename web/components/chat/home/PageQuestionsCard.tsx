@@ -373,6 +373,8 @@ function CropImageModal({
   };
 
   const canConfirm = sel !== null && sel.w > 0.01 && sel.h > 0.01;
+  // 只有图片比视口大（放大后）才有内容可平移
+  const canPan = base.w > 0 && (dispW > viewSize.w + 1 || dispH > viewSize.h + 1);
   const cursor =
     mode === "pan"
       ? panning
@@ -386,8 +388,8 @@ function CropImageModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="w-fit max-w-[min(94vw,760px)] rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-xl">
-        <div className="mb-3 flex items-center justify-between">
+      <div className="flex max-h-[92vh] w-[min(680px,92vw)] flex-col rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-xl">
+        <div className="mb-3 flex shrink-0 items-center justify-between">
           <div>
             <h4 className="text-[14px] font-semibold">调整裁剪范围</h4>
             <p className="mt-0.5 text-[11.5px] text-[var(--muted-foreground)]">
@@ -422,7 +424,9 @@ function CropImageModal({
             <button
               type="button"
               onClick={() => setMode("pan")}
-              className={`inline-flex items-center gap-1 px-2 py-1 text-[11.5px] transition-colors ${
+              disabled={!canPan}
+              title={canPan ? "拖拽平移视图" : "视图已完整显示，滚轮放大后可平移"}
+              className={`inline-flex items-center gap-1 px-2 py-1 text-[11.5px] transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
                 mode === "pan"
                   ? "bg-[var(--accent)] text-[var(--accent-foreground)]"
                   : "text-[var(--muted-foreground)] hover:bg-[var(--muted)]"
@@ -431,6 +435,11 @@ function CropImageModal({
               <Move size={12} /> 平移
             </button>
           </div>
+          {mode === "pan" && !canPan && (
+            <span className="text-[11px] text-[var(--muted-foreground)]">
+              视图已完整，滚轮放大后可平移
+            </span>
+          )}
           <button
             type="button"
             onClick={resetView}
@@ -448,10 +457,8 @@ function CropImageModal({
 
         <div
           ref={viewportRef}
-          className="relative select-none overflow-hidden rounded-md bg-[var(--muted)]/30"
+          className="relative min-h-[200px] w-full flex-1 select-none overflow-hidden rounded-md bg-[var(--muted)]/30"
           style={{
-            width: "min(680px, 88vw)",
-            height: "min(520px, 56vh)",
             touchAction: "none",
             cursor,
           }}
@@ -536,7 +543,7 @@ function CropImageModal({
           )}
         </div>
 
-        <div className="mt-3 flex items-center justify-end gap-2">
+        <div className="mt-3 flex shrink-0 items-center justify-end gap-2">
           <button
             type="button"
             onClick={onCancel}
