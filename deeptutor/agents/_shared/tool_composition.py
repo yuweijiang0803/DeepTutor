@@ -305,8 +305,29 @@ def user_has_question_bank() -> bool:
     :func:`user_has_notebooks` on purpose — the bank and the notebooks are
     different stores, and a learner routinely has one without the other.
     Same fail-closed posture as its siblings.
+
+    The check must look at the ACTIVE store: the bank lives in MySQL in
+    ``mysql`` mode (web/server) and in local SQLite in ``local``/``dual``
+    modes — probing only SQLite would leave LLM access to the bank off
+    whenever the data is on the server.
     """
     try:
+        from deeptutor.services.session.mysql_store import _current_user_id, storage_mode
+
+        mode = storage_mode()
+        if mode == "mysql":
+            from deeptutor.learning.mysql_storage import _mysql_conn
+
+            conn = _mysql_conn()
+            try:
+                cur = conn.cursor()
+                cur.execute(
+                    "SELECT 1 FROM dt_notebook_entries WHERE user_id=%s LIMIT 1",
+                    (_current_user_id(),),
+                )
+                return cur.fetchone() is not None
+            finally:
+                conn.close()
         from deeptutor.services.session import get_sqlite_session_store
 
         return get_sqlite_session_store().has_question_bank_entries()
