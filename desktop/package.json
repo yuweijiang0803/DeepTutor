@@ -1,13 +1,13 @@
 {
   "name": "deeptutor-desktop-shell",
-  "version": "0.0.4",
+  "version": "1.6.0.1",
   "private": true,
   "author": "DeepTutor Desktop Shell",
   "description": "Minimal Electron shell wrapping the DeepTutor web frontend. No Python backend bundled; the web's own Next standalone server runs inside the shell.",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build:web": "cd ../web && npm run build && node ../desktop/copy-standalone-assets.js",
+    "build:web": "cd ../web && NEXT_PUBLIC_APP_VERSION=$npm_package_version npm run build && node ../desktop/copy-standalone-assets.js",
     "bundle:node": "node bundle-node.js",
     "dist": "npm run bundle:node && npm run build:web && electron-builder",
     "dist:mac": "npm run bundle:node && npm run build:web && electron-builder --mac",
