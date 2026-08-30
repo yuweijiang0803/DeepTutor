@@ -39,28 +39,35 @@ scp dist-electron/*.exe "$REMOTE_HOST:$UPDATES_DIR/" 2>/dev/null || true
 scp dist-electron/*.AppImage "$REMOTE_HOST:$UPDATES_DIR/" 2>/dev/null || true
 
 # 更新 versions.json（下载页展示所有版本），并上传
-VERSION="$(python3 -c "import json;print(json.load(open('$ROOT/desktop/package.json'))['version'])")"
-python3 - "$ROOT/deploy/versions.json" "$VERSION" <<'PYEOF'
+# 下载页展示"显示版本"（1.6.0.1），文件 URL 用 semver 更新版本（1.6.100）
+SEMVER="$(python3 -c "import json;print(json.load(open('$ROOT/desktop/package.json'))['version'])")"
+DISPLAY="$(python3 - "$SEMVER" <<'PYEOF'
+import sys
+m = [int(x) for x in sys.argv[1].split('.')]
+print(f"{m[0]}.{m[1]}.0.{m[2] - 99}" if len(m) >= 3 else sys.argv[1])
+PYEOF
+)"
+python3 - "$ROOT/deploy/versions.json" "$DISPLAY" "$SEMVER" <<'PYEOF'
 import json, sys, os
-path, version = sys.argv[1], sys.argv[2]
+path, display, semver = sys.argv[1], sys.argv[2], sys.argv[3]
 try:
     data = json.load(open(path))
 except Exception:
     data = {"versions": []}
 versions = data.setdefault("versions", [])
-# 去掉同版本旧条目
-versions = [v for v in versions if v.get("version") != version]
+# 去掉同显示版本旧条目
+versions = [v for v in versions if v.get("version") != display]
 entry = {
-    "version": version,
-    "mac_arm64": f"DeepTutor-{version}-arm64.dmg",
-    "mac_x64": f"DeepTutor-{version}.dmg",
-    "win": f"DeepTutor-{version}.exe" if os.path.exists(f"dist-electron/DeepTutor-{version}.exe") else "",
-    "linux": f"DeepTutor-{version}.AppImage" if os.path.exists(f"dist-electron/DeepTutor-{version}.AppImage") else "",
+    "version": display,
+    "mac_arm64": f"DeepTutor-{semver}-arm64.dmg",
+    "mac_x64": f"DeepTutor-{semver}.dmg",
+    "win": f"DeepTutor-{semver}.exe" if os.path.exists(f"dist-electron/DeepTutor-{semver}.exe") else "",
+    "linux": f"DeepTutor-{semver}.AppImage" if os.path.exists(f"dist-electron/DeepTutor-{semver}.AppImage") else "",
 }
 versions.insert(0, entry)
 data["versions"] = versions
 json.dump(data, open(path, "w"), ensure_ascii=False, indent=2)
-print(f"versions.json 已更新：v{version}")
+print(f"versions.json 已更新：显示 v{display}（更新 {semver}）")
 PYEOF
 scp "$ROOT/deploy/versions.json" "$REMOTE_HOST:$UPDATES_DIR/versions.json" 2>/dev/null || true
 # 下载页（index.html）也一并同步，避免服务器端与仓库不一致
