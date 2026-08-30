@@ -1,6 +1,6 @@
 {
   "name": "deeptutor-desktop-shell",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "private": true,
   "author": "DeepTutor Desktop Shell",
   "description": "Minimal Electron shell wrapping the DeepTutor web frontend. No Python backend bundled; the web's own Next standalone server runs inside the shell.",
