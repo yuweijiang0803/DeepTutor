@@ -40,16 +40,24 @@
     const isWin = /Win/i.test(ua);
     const isLinux = !isMac && !isWin && /Linux/i.test(ua);
     const urlArch = new URLSearchParams(location.search).get('arch');
+    // 只有带准确 arch 参数（app 内跳转）才细分 mac 芯片；否则不猜测
+    const macArchKnown = isMac && !!urlArch;
     const isArm = urlArch
       ? urlArch === 'arm64' || urlArch === 'aarch64'
       : /arm64|aarch64/i.test(ua);
-    const sysLabel = isMac ? (isArm ? "macOS (Apple 芯片 M1/M2/M3…)" : "macOS (Intel)")
+    const sysLabel = isMac
+      ? macArchKnown
+        ? (isArm ? "macOS (Apple 芯片 M1/M2/M3…)" : "macOS (Intel)")
+        : "macOS"
       : isWin ? "Windows" : isLinux ? "Linux" : "未知系统";
-    const sysShort = isMac ? (isArm ? "Mac M1/M2" : "Mac Intel")
+    const sysShort = isMac
+      ? macArchKnown
+        ? (isArm ? "Mac M1/M2" : "Mac Intel")
+        : "macOS"
       : isWin ? "Windows" : isLinux ? "Linux" : "本系统";
 
     function keyFor() {
-      if (isMac) return isArm ? "mac_arm64" : "mac_x64";
+      if (isMac) return macArchKnown ? (isArm ? "mac_arm64" : "mac_x64") : "mac_arm64";
       if (isWin) return "win";
       return "linux";
     }
@@ -66,8 +74,8 @@
         if (isMac) {
           hint.textContent =
             "mac 版是免安装文件：下载 dmg → 双击打开 → 把 DeepTutor.app 拖到桌面/应用程序即可直接运行。" +
-            (!urlArch
-              ? " 提示：浏览器无法自动识别 Mac 芯片（M1/Intel），若显示与实际不符，请从 App 内\"去下载\"跳转（会自动匹配）。"
+            (!macArchKnown
+              ? " 从 App 内\"去下载\"跳转会准确识别你的芯片（M1 或 Intel）。"
               : "");
         } else if (isWin) {
           hint.textContent = "Windows 版：下载 exe 安装后自动升级；首次运行如见 SmartScreen 提示，点\"仍要运行\"。";
@@ -100,12 +108,15 @@
           seen.add(k);
           const url = v[k];
           if (!url) return;
+          const label =
+            k === "mac_arm64" ? (macArchKnown ? "Mac M1/M2" : "macOS")
+            : k === "mac_x64" ? (macArchKnown ? "Mac Intel" : "")
+            : k === "win" ? "Windows" : "Linux";
+          if (!label) return; // 芯片未知时不显示误导的 Intel 按钮
           const a = document.createElement("a");
           a.className = "dl";
           a.href = url;
-          a.textContent =
-            k === "mac_arm64" ? "Mac M1/M2" : k === "mac_x64" ? "Mac Intel"
-            : k === "win" ? "Windows" : "Linux";
+          a.textContent = label;
           filesDiv.appendChild(a);
         });
         if (filesDiv.childNodes.length === 0) filesDiv.textContent = "暂未发布";
