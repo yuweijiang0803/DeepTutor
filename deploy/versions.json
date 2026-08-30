@@ -4,7 +4,7 @@
       "version": "0.0.4",
       "mac_arm64": "DeepTutor-0.0.4-arm64.dmg",
       "mac_x64": "DeepTutor-0.0.4.dmg",
-      "win": "",
+      "win": "DeepTutor Setup 0.0.4.exe",
       "linux": ""
     },
     {
