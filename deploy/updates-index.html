@@ -77,7 +77,10 @@
         // 该版本可下载的文件（当前系统优先排前）
         const filesDiv = row.querySelector(".files");
         const order = [myKey, "mac_arm64", "mac_x64", "win", "linux"];
+        const seen = new Set();
         order.forEach((k) => {
+          if (seen.has(k)) return;
+          seen.add(k);
           const url = v[k];
           if (!url) return;
           const a = document.createElement("a");
