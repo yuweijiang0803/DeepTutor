@@ -13,6 +13,10 @@ directories:
   output: dist-electron
   buildResources: build   # 应用图标 build/icon.icns|icon.ico|icon.png
 
+# mac 未签名也能自动更新的关键：对打包出的 .app 做 ad-hoc 代码签名
+# （Squirrel.Mac 更新要求 app 有有效签名）
+afterPack: build/afterPack.js
+
 files:
   - "main.js"
   - "preload.js"
