@@ -8,15 +8,16 @@
 #   bash deploy/desktop-release.sh linux  仅 linux
 #   bash deploy/desktop-release.sh all    当前平台
 #
-# 产物上传到服务器 /app/xzserver/nginx/updates/
-# （nginx 容器挂载到 /www/updates，对外 /updates/ 静态目录），
-# PC 端 electron-updater 从这里拉 latest*.yml + 安装包自动更新。
+# 产物上传到服务器 /app/xzserver/deeptutor-data/updates/
+# （nginx 容器挂载为 /www/updates，对外 /updates/ 静态目录）。
+# 注意：不能放 /app/xzserver/nginx/updates——xiaozhi 的 sync.sh 用 rsync --delete
+# 同步 ./nginx，会把该目录删掉导致挂载失效。
 # ============================================================
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 REMOTE_HOST="root@xiaozhi1.looosen.cn"
-UPDATES_DIR="/app/xzserver/nginx/updates"
+UPDATES_DIR="/app/xzserver/deeptutor-data/updates"
 PLATFORM="${1:-all}"
 
 cd "$ROOT/desktop"
