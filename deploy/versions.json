@@ -2,8 +2,8 @@
   "versions": [
     {
       "version": "1.6.0.2",
-      "mac_arm64": "",
-      "mac_x64": "",
+      "mac_arm64": "DeepTutor-1.6.101-arm64.dmg",
+      "mac_x64": "DeepTutor-1.6.101.dmg",
       "win": "DeepTutor Setup 1.6.101.exe",
       "linux": ""
     },

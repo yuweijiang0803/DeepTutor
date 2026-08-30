@@ -8,14 +8,15 @@
 #   bash deploy/desktop-release.sh linux  仅 linux
 #   bash deploy/desktop-release.sh all    当前平台
 #
-# 产物上传到服务器 /app/xzserver/updates/（nginx /updates/ 静态目录），
+# 产物上传到服务器 /app/xzserver/nginx/updates/
+# （nginx 容器挂载到 /www/updates，对外 /updates/ 静态目录），
 # PC 端 electron-updater 从这里拉 latest*.yml + 安装包自动更新。
 # ============================================================
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 REMOTE_HOST="root@xiaozhi1.looosen.cn"
-UPDATES_DIR="/app/xzserver/updates"
+UPDATES_DIR="/app/xzserver/nginx/updates"
 PLATFORM="${1:-all}"
 
 cd "$ROOT/desktop"
@@ -37,6 +38,8 @@ scp dist-electron/latest*.yml "$REMOTE_HOST:$UPDATES_DIR/" 2>/dev/null || true
 scp dist-electron/*.dmg "$REMOTE_HOST:$UPDATES_DIR/" 2>/dev/null || true
 scp dist-electron/*.exe "$REMOTE_HOST:$UPDATES_DIR/" 2>/dev/null || true
 scp dist-electron/*.AppImage "$REMOTE_HOST:$UPDATES_DIR/" 2>/dev/null || true
+# mac 自动更新必需：Squirrel.Mac 用 zip 做增量更新，latest-mac.yml 引用的正是 *-mac.zip
+scp dist-electron/*-mac.zip "$REMOTE_HOST:$UPDATES_DIR/" 2>/dev/null || true
 
 # 更新 versions.json（下载页展示所有版本），并上传
 # 下载页展示"显示版本"（1.6.0.1），文件 URL 用 semver 更新版本（1.6.100）
