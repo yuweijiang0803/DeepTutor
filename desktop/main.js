@@ -94,7 +94,7 @@ function waitForPort(cb) {
 //   • Windows/Linux：检测到新版自动下载 → 自动重启安装（nsis/AppImage 无需签名）。
 //   • macOS：Squirrel.Mac 的自动替换安装要求有效 Developer ID 签名，未签名
 //     （含 ad-hoc）会校验失败。所以 mac 只检测新版 → 弹窗引导用户去
-//     更新页（http://tutor.hourofai.cn/updates/）手动下载 dmg 安装。
+//     更新页（https://tutor.hourofai.cn/updates/）手动下载 dmg 安装。
 function setupAutoUpdater() {
   if (!app.isPackaged) return;
   try {
@@ -111,7 +111,7 @@ function setupAutoUpdater() {
           type: 'info',
           title: '发现新版本',
           message: `发现新版本 ${info && info.version}，是否前往下载安装？`,
-          detail: '下载页面：http://tutor.hourofai.cn/updates/',
+          detail: '下载页面：https://tutor.hourofai.cn/updates/',
           buttons: ['去下载', '稍后'],
           defaultId: 0,
           cancelId: 1,
@@ -119,7 +119,7 @@ function setupAutoUpdater() {
         if (response === 0) {
           // 带准确架构参数（浏览器 UA 无法区分 mac M1/Intel，process.arch 可靠）
           shell.openExternal(
-            'http://tutor.hourofai.cn/updates/?arch=' + process.arch,
+            'https://tutor.hourofai.cn/updates/?arch=' + process.arch,
           );
         }
       });

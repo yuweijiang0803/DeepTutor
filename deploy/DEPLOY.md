@@ -86,7 +86,7 @@ ssh root@<xiaozhi服务器> "cd /app/xzserver && docker compose exec deeptutor d
 ### 6. DNS + 验证
 
 1. `tutor.hourofai.cn` 解析到服务器 IP
-2. 浏览器打开 `http://tutor.hourofai.cn`
+2. 浏览器打开 `https://tutor.hourofai.cn`
 3. 注册/登录第一个 admin → 发对话
 4. 验证 RDS：`mixly.dt_messages` 有记录
 5. 小智老用户：前端登录页调 `xiaozhi-login` 能进（SSO，需前端入口）

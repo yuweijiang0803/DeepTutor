@@ -91,7 +91,7 @@ ssh root@<xiaozhi服务器> "cd /app/xzserver && docker compose logs --tail 5 de
 curl -s -o /dev/null -w '%{http_code}\n' -H 'Host: tutor.hourofai.cn' \
   http://<xiaozhi服务器IP>/login
 
-# 5. 浏览器打开 http://tutor.hourofai.cn 走一遍登录/使用
+# 5. 浏览器打开 https://tutor.hourofai.cn 走一遍登录/使用
 ```
 
 ## 五、回滚
