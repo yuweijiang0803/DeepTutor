@@ -1,7 +1,15 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
-import { CheckCircle2, Crop, Loader2, Save, X } from "lucide-react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  CheckCircle2,
+  Crop,
+  Loader2,
+  Move,
+  RotateCcw,
+  Save,
+  X,
+} from "lucide-react";
 import { upsertNotebookEntry } from "@/lib/notebook-api";
 
 export interface PageQuestion {
@@ -30,9 +38,10 @@ export function extractPageQuestions(
 }
 
 // ── 二次裁剪 ──────────────────────────────────────────────────────
-// 在已裁剪的题目图上再调整裁剪范围。选择框用归一化坐标（相对图片显示
-// 尺寸 0..1）存储，指针事件换算成归一化后写入 state，确认时按原图
-// 分辨率画到 canvas 输出新的 data URL。
+// 默认基于【整页原图】重新裁剪：把该题的 bbox 标在原图上，用户可扩大/
+// 缩小/移动选框，还支持滚轮缩放视图 + 平移，确认后按原图分辨率裁出新图。
+// 拿不到原图时回退为在已裁剪小图内二次裁剪（无 bbox 初始框）。
+// 选框用归一化坐标（相对图片显示尺寸 0..1）存储。
 
 type CropSelection = { x: number; y: number; w: number; h: number };
 type DragMode =
@@ -181,23 +190,116 @@ const HANDLES: Array<{ mode: DragMode; left: string; top: string }> = [
   { mode: "w", left: "0%", top: "50%" },
 ];
 
+const MAX_ZOOM = 8;
+
 function CropImageModal({
   src,
+  initSelection,
+  fromPage,
   onCancel,
   onConfirm,
 }: {
   src: string;
+  /** 初始选框（归一化，原图 bbox）；不传则需手动拖画。 */
+  initSelection?: CropSelection | null;
+  /** 是否基于整页原图（显示提示文案用）。 */
+  fromPage?: boolean;
   onCancel: () => void;
   onConfirm: (dataUrl: string) => void;
 }) {
   const imgRef = useRef<HTMLImageElement>(null);
-  const [sel, setSel] = useState<CropSelection | null>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const [sel, setSel] = useState<CropSelection | null>(initSelection ?? null);
+  const [mode, setMode] = useState<"crop" | "pan">("crop");
   const [activeMode, setActiveMode] = useState<DragMode | null>(null);
+  const [panning, setPanning] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [base, setBase] = useState({ w: 0, h: 0 });
+  const [viewSize, setViewSize] = useState({ w: 680, h: 520 });
   const dragRef = useRef<{
     mode: DragMode;
     start: { x: number; y: number };
     init: CropSelection;
   } | null>(null);
+  const panRef = useRef<{
+    startX: number;
+    startY: number;
+    panX: number;
+    panY: number;
+  } | null>(null);
+
+  useLayoutEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+    setViewSize({ w: el.clientWidth, h: el.clientHeight });
+  }, []);
+
+  // 原图加载完成后按视口计算基准显示尺寸，并居中
+  const handleLoad = () => {
+    const imgEl = imgRef.current;
+    if (!imgEl) return;
+    const scale = Math.min(
+      viewSize.w / imgEl.naturalWidth,
+      viewSize.h / imgEl.naturalHeight,
+      1,
+    );
+    const w = imgEl.naturalWidth * scale;
+    const h = imgEl.naturalHeight * scale;
+    setBase({ w, h });
+    setZoom(1);
+    setPan({ x: (viewSize.w - w) / 2, y: (viewSize.h - h) / 2 });
+  };
+
+  const dispW = base.w * zoom;
+  const dispH = base.h * zoom;
+
+  const clampPan = (x: number, y: number) => ({
+    x:
+      dispW <= viewSize.w
+        ? (viewSize.w - dispW) / 2
+        : clamp(x, viewSize.w - dispW, 0),
+    y:
+      dispH <= viewSize.h
+        ? (viewSize.h - dispH) / 2
+        : clamp(y, viewSize.h - dispH, 0),
+  });
+
+  const resetView = () => {
+    setZoom(1);
+    setPan({ x: (viewSize.w - base.w) / 2, y: (viewSize.h - base.h) / 2 });
+  };
+
+  // 非被动 wheel 监听（阻止页面滚动），光标为中心缩放
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el || base.w === 0) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const rect = el.getBoundingClientRect();
+      const cx = e.clientX - rect.left;
+      const cy = e.clientY - rect.top;
+      const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+      const z2 = clamp(zoom * factor, 1, MAX_ZOOM);
+      if (z2 === zoom) return;
+      const w0 = base.w * zoom;
+      const h0 = base.h * zoom;
+      const nx = (cx - pan.x) / w0;
+      const ny = (cy - pan.y) / h0;
+      const w2 = base.w * z2;
+      const h2 = base.h * z2;
+      let px = cx - nx * w2;
+      let py = cy - ny * h2;
+      if (w2 <= viewSize.w) px = (viewSize.w - w2) / 2;
+      else px = clamp(px, viewSize.w - w2, 0);
+      if (h2 <= viewSize.h) py = (viewSize.h - h2) / 2;
+      else py = clamp(py, viewSize.h - h2, 0);
+      setZoom(z2);
+      setPan({ x: px, y: py });
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [zoom, pan, base, viewSize]);
 
   const normPoint = (e: React.PointerEvent) => {
     const rect = imgRef.current!.getBoundingClientRect();
@@ -210,13 +312,18 @@ function CropImageModal({
   };
 
   const handlePointerDown = (e: React.PointerEvent) => {
-    if (!imgRef.current) return;
-    const p = normPoint(e);
+    if (!imgRef.current || base.w === 0) return;
     e.currentTarget.setPointerCapture(e.pointerId);
-    const mode = hitTest(p.x, p.y, sel, p);
-    setActiveMode(mode ?? "draw");
-    if (mode && mode !== "draw") {
-      dragRef.current = { mode, start: { x: p.x, y: p.y }, init: sel! };
+    if (mode === "pan") {
+      setPanning(true);
+      panRef.current = { startX: e.clientX, startY: e.clientY, panX: pan.x, panY: pan.y };
+      return;
+    }
+    const p = normPoint(e);
+    const dragMode = hitTest(p.x, p.y, sel, p);
+    setActiveMode(dragMode ?? "draw");
+    if (dragMode && dragMode !== "draw") {
+      dragRef.current = { mode: dragMode, start: { x: p.x, y: p.y }, init: sel! };
     } else {
       dragRef.current = { mode: "draw", start: { x: p.x, y: p.y }, init: { x: p.x, y: p.y, w: 0, h: 0 } };
       setSel({ x: p.x, y: p.y, w: 0, h: 0 });
@@ -224,6 +331,12 @@ function CropImageModal({
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
+    if (mode === "pan") {
+      const pr = panRef.current;
+      if (!pr || base.w === 0) return;
+      setPan(clampPan(pr.panX + (e.clientX - pr.startX), pr.panY + (e.clientY - pr.startY)));
+      return;
+    }
     const drag = dragRef.current;
     if (!drag || !imgRef.current) return;
     const p = normPoint(e);
@@ -234,7 +347,9 @@ function CropImageModal({
 
   const handlePointerUp = () => {
     dragRef.current = null;
+    panRef.current = null;
     setActiveMode(null);
+    setPanning(false);
   };
 
   const handleConfirm = () => {
@@ -256,17 +371,29 @@ function CropImageModal({
   };
 
   const canConfirm = sel !== null && sel.w > 0.01 && sel.h > 0.01;
-  const cursor = activeMode
-    ? HANDLE_CURSOR[activeMode]
-    : sel
-      ? HANDLE_CURSOR["move"]
-      : HANDLE_CURSOR["draw"];
+  const cursor =
+    mode === "pan"
+      ? panning
+        ? "grabbing"
+        : "grab"
+      : activeMode
+        ? HANDLE_CURSOR[activeMode]
+        : sel
+          ? HANDLE_CURSOR["move"]
+          : HANDLE_CURSOR["draw"];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="w-fit max-w-[min(92vw,720px)] rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-xl">
+      <div className="w-fit max-w-[min(94vw,760px)] rounded-xl border border-[var(--border)] bg-[var(--card)] p-4 shadow-xl">
         <div className="mb-3 flex items-center justify-between">
-          <h4 className="text-[14px] font-semibold">调整裁剪范围</h4>
+          <div>
+            <h4 className="text-[14px] font-semibold">调整裁剪范围</h4>
+            <p className="mt-0.5 text-[11.5px] text-[var(--muted-foreground)]">
+              {fromPage
+                ? "选框是当前题在整页中的位置，拖动/缩放可扩大范围；滚轮缩放视图"
+                : "拖动选择裁剪区域，可放大缩小"}
+            </p>
+          </div>
           <button
             type="button"
             onClick={onCancel}
@@ -276,51 +403,111 @@ function CropImageModal({
           </button>
         </div>
 
+        {/* 工具栏：模式切换 + 视图重置 */}
+        <div className="mb-2 flex items-center gap-2">
+          <div className="flex overflow-hidden rounded-lg border border-[var(--border)]">
+            <button
+              type="button"
+              onClick={() => setMode("crop")}
+              className={`inline-flex items-center gap-1 px-2 py-1 text-[11.5px] transition-colors ${
+                mode === "crop"
+                  ? "bg-[var(--accent)] text-[var(--accent-foreground)]"
+                  : "text-[var(--muted-foreground)] hover:bg-[var(--muted)]"
+              }`}
+            >
+              <Crop size={12} /> 裁剪
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("pan")}
+              className={`inline-flex items-center gap-1 px-2 py-1 text-[11.5px] transition-colors ${
+                mode === "pan"
+                  ? "bg-[var(--accent)] text-[var(--accent-foreground)]"
+                  : "text-[var(--muted-foreground)] hover:bg-[var(--muted)]"
+              }`}
+            >
+              <Move size={12} /> 平移
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={resetView}
+            title="重置视图"
+            className="inline-flex items-center gap-1 rounded-lg border border-[var(--border)] px-2 py-1 text-[11.5px] text-[var(--muted-foreground)] transition-colors hover:bg-[var(--muted)]"
+          >
+            <RotateCcw size={12} /> 重置视图
+          </button>
+          {zoom > 1.01 && (
+            <span className="text-[11px] text-[var(--muted-foreground)]">
+              {Math.round(zoom * 100)}%
+            </span>
+          )}
+        </div>
+
         <div
-          className="relative inline-block select-none overflow-hidden rounded-md"
-          style={{ touchAction: "none", cursor }}
+          ref={viewportRef}
+          className="relative select-none overflow-hidden rounded-md bg-[var(--muted)]/30"
+          style={{
+            width: "min(680px, 88vw)",
+            height: "min(520px, 56vh)",
+            touchAction: "none",
+            cursor,
+          }}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
+          onDoubleClick={resetView}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            ref={imgRef}
-            src={src}
-            alt="裁剪区域"
-            draggable={false}
-            className="block max-h-[55vh] max-w-[min(90vw,660px)] bg-white"
-          />
-
-          {sel && sel.w > 0.005 && sel.h > 0.005 ? (
-            <div
-              className="pointer-events-none absolute border-2 border-[var(--primary)]"
-              style={{
-                left: `${sel.x * 100}%`,
-                top: `${sel.y * 100}%`,
-                width: `${sel.w * 100}%`,
-                height: `${sel.h * 100}%`,
-              }}
-            >
-              {/* 选区外遮罩（box-shadow 向四周扩散，由父级 overflow-hidden 裁剪） */}
-              <div
-                className="absolute inset-0"
-                style={{ boxShadow: "0 0 0 9999px rgba(0,0,0,0.55)" }}
-              />
-              {HANDLES.map((hd) => (
-                <div
-                  key={hd.mode}
-                  className="absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-[3px] border border-[var(--primary)] bg-white shadow"
-                  style={{ left: hd.left, top: hd.top }}
-                />
-              ))}
+          {base.w === 0 ? (
+            <div className="absolute inset-0 flex items-center justify-center text-[12px] text-[var(--muted-foreground)]">
+              加载图片中…
             </div>
           ) : (
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-              <span className="rounded-md bg-black/55 px-2 py-1 text-[12px] text-white">
-                在图片上拖动选择裁剪区域
-              </span>
+            <div
+              className="absolute"
+              style={{ left: pan.x, top: pan.y, width: dispW, height: dispH }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                ref={imgRef}
+                src={src}
+                alt="裁剪区域"
+                draggable={false}
+                onLoad={handleLoad}
+                className="pointer-events-none block h-full w-full"
+              />
+
+              {sel && sel.w > 0.005 && sel.h > 0.005 ? (
+                <div
+                  className="pointer-events-none absolute border-2 border-[var(--primary)]"
+                  style={{
+                    left: `${sel.x * 100}%`,
+                    top: `${sel.y * 100}%`,
+                    width: `${sel.w * 100}%`,
+                    height: `${sel.h * 100}%`,
+                  }}
+                >
+                  {/* 选区外遮罩（box-shadow 向四周扩散，由父级 overflow-hidden 裁剪） */}
+                  <div
+                    className="absolute inset-0"
+                    style={{ boxShadow: "0 0 0 9999px rgba(0,0,0,0.55)" }}
+                  />
+                  {HANDLES.map((hd) => (
+                    <div
+                      key={hd.mode}
+                      className="absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-[3px] border border-[var(--primary)] bg-white shadow"
+                      style={{ left: hd.left, top: hd.top }}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                  <span className="rounded-md bg-black/55 px-2 py-1 text-[12px] text-white">
+                    在图片上拖动选择裁剪区域
+                  </span>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -350,11 +537,14 @@ function CropImageModal({
 interface PageQuestionsCardProps {
   questions: PageQuestion[];
   sessionId: string;
+  /** 整页原图 URL（消息里用户上传的照片），用于基于原图二次裁剪。 */
+  pageImageUrl?: string;
 }
 
 export function PageQuestionsCard({
   questions,
   sessionId,
+  pageImageUrl,
 }: PageQuestionsCardProps) {
   // Wrong by default from the LLM judgment; the learner can untick.
   const [wrongSet, setWrongSet] = useState<Set<number>>(
@@ -389,6 +579,16 @@ export function PageQuestionsCard({
     cropNumber === null
       ? null
       : questions.find((q) => q.number === cropNumber) ?? null;
+
+  /** bbox 是否可用作原图上的初始选框 */
+  const validBbox = (q: PageQuestion) => {
+    const b = q.bbox;
+    if (!pageImageUrl || !Array.isArray(b) || b.length !== 4) return false;
+    const [x, y, w, h] = b;
+    return (
+      x >= 0 && y >= 0 && w > 0 && h > 0 && x + w <= 1.001 && y + h <= 1.001
+    );
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -521,7 +721,23 @@ export function PageQuestionsCard({
 
       {croppedQuestion && imageSrcFor(croppedQuestion) && (
         <CropImageModal
-          src={imageSrcFor(croppedQuestion)!}
+          key={cropNumber}
+          src={
+            validBbox(croppedQuestion)
+              ? pageImageUrl!
+              : imageSrcFor(croppedQuestion)!
+          }
+          initSelection={
+            validBbox(croppedQuestion)
+              ? {
+                  x: croppedQuestion.bbox[0],
+                  y: croppedQuestion.bbox[1],
+                  w: croppedQuestion.bbox[2],
+                  h: croppedQuestion.bbox[3],
+                }
+              : null
+          }
+          fromPage={validBbox(croppedQuestion)}
           onCancel={() => setCropNumber(null)}
           onConfirm={(dataUrl) => {
             setImageUrls((prev) => ({ ...prev, [cropNumber!]: dataUrl }));

@@ -142,6 +142,19 @@ function imageSrcForAttachment(attachment: MessageAttachment): string | null {
   return `data:${attachment.mime_type || "image/png"};base64,${base64}`;
 }
 
+/** 取消息里第一张图片附件的可加载 URL（页面照片原图）。 */
+function firstImageAttachmentSrc(
+  attachments: MessageAttachment[] | undefined,
+): string | undefined {
+  const img = (attachments ?? []).find(
+    (a) =>
+      a.type === "image" ||
+      a.mime_type?.startsWith("image/") ||
+      (a.url && /\.(png|jpe?g|webp|gif|bmp)$/i.test(a.url)),
+  );
+  return img ? imageSrcForAttachment(img) ?? undefined : undefined;
+}
+
 /** Format a byte count for a file card subtitle (e.g. "14 KB"). */
 function formatFileSize(bytes?: number): string {
   if (!bytes || bytes <= 0) return "";
@@ -292,6 +305,7 @@ const AssistantMessage = memo(function AssistantMessage({
   outlineStatus,
   sessionId,
   language,
+  pageImageUrl,
   onConfirmOutline,
   onSubmitUserReply,
   researchRequestSnapshot,
@@ -301,6 +315,8 @@ const AssistantMessage = memo(function AssistantMessage({
   outlineStatus?: "editing" | "researching" | "done";
   sessionId?: string | null;
   language?: string;
+  /** 页面照片附件 URL（整页原图），供错题卡片基于原图二次裁剪。 */
+  pageImageUrl?: string;
   researchRequestSnapshot?: MessageRequestSnapshot | null;
   onConfirmOutline?: (
     outline: Array<{ title: string; overview: string }>,
@@ -440,6 +456,7 @@ const AssistantMessage = memo(function AssistantMessage({
         <PageQuestionsCard
           questions={pageQuestions}
           sessionId={sessionId ?? ""}
+          pageImageUrl={pageImageUrl}
         />
       ) : null}
       {/* Activity block pinned to the TOP: the status header
@@ -1496,6 +1513,7 @@ export const ChatMessageList = memo(function ChatMessageList({
                 outlineStatus={outlineStatusByIndex.get(i)}
                 sessionId={sessionId}
                 language={language}
+                pageImageUrl={firstImageAttachmentSrc(msg.attachments)}
                 onConfirmOutline={onConfirmOutline}
                 onSubmitUserReply={onSubmitUserReply}
                 researchRequestSnapshot={
