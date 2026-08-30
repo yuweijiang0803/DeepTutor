@@ -38,6 +38,34 @@ scp dist-electron/*.dmg "$REMOTE_HOST:$UPDATES_DIR/" 2>/dev/null || true
 scp dist-electron/*.exe "$REMOTE_HOST:$UPDATES_DIR/" 2>/dev/null || true
 scp dist-electron/*.AppImage "$REMOTE_HOST:$UPDATES_DIR/" 2>/dev/null || true
 
+# 更新 versions.json（下载页展示所有版本），并上传
+VERSION="$(python3 -c "import json;print(json.load(open('$ROOT/desktop/package.json'))['version'])")"
+python3 - "$ROOT/deploy/versions.json" "$VERSION" <<'PYEOF'
+import json, sys, os
+path, version = sys.argv[1], sys.argv[2]
+try:
+    data = json.load(open(path))
+except Exception:
+    data = {"versions": []}
+versions = data.setdefault("versions", [])
+# 去掉同版本旧条目
+versions = [v for v in versions if v.get("version") != version]
+entry = {
+    "version": version,
+    "mac_arm64": f"DeepTutor-{version}-arm64.dmg",
+    "mac_x64": f"DeepTutor-{version}.dmg",
+    "win": f"DeepTutor-{version}.exe" if os.path.exists(f"dist-electron/DeepTutor-{version}.exe") else "",
+    "linux": f"DeepTutor-{version}.AppImage" if os.path.exists(f"dist-electron/DeepTutor-{version}.AppImage") else "",
+}
+versions.insert(0, entry)
+data["versions"] = versions
+json.dump(data, open(path, "w"), ensure_ascii=False, indent=2)
+print(f"versions.json 已更新：v{version}")
+PYEOF
+scp "$ROOT/deploy/versions.json" "$REMOTE_HOST:$UPDATES_DIR/versions.json" 2>/dev/null || true
+# 下载页（index.html）也一并同步，避免服务器端与仓库不一致
+scp "$ROOT/deploy/updates-index.html" "$REMOTE_HOST:$UPDATES_DIR/index.html" 2>/dev/null || true
+
 echo "== 服务器 updates 目录内容 =="
 ssh "$REMOTE_HOST" "ls -la $UPDATES_DIR | tail -10"
 echo "✅ 桌面端发版完成：PC 端会自动检测并更新（https://tutor.hourofai.cn/updates/）"
