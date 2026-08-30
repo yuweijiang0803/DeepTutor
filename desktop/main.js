@@ -83,22 +83,48 @@ function waitForPort(cb) {
 
 // --- 自动更新（electron-updater）---
 // 仅打包后启用；开发模式跳过。更新源在 electron-builder.yml 的 publish。
-// 策略：启动 5 秒后检查 → 有新版自动下载 → 下载完成自动重启安装。
+// 平台差异：
+//   • Windows/Linux：检测到新版自动下载 → 自动重启安装（nsis/AppImage 无需签名）。
+//   • macOS：Squirrel.Mac 的自动替换安装要求有效 Developer ID 签名，未签名
+//     （含 ad-hoc）会校验失败。所以 mac 只检测新版 → 弹窗引导用户去
+//     更新页（http://tutor.hourofai.cn/updates/）手动下载 dmg 安装。
 function setupAutoUpdater() {
   if (!app.isPackaged) return;
   try {
     // eslint-disable-next-line global-require
     const { autoUpdater } = require('electron-updater');
-    autoUpdater.autoDownload = true;
-    autoUpdater.autoInstallOnAppQuit = false;
-    autoUpdater.on('update-downloaded', () => {
-      console.log('[auto-update] new version downloaded; installing…');
-      autoUpdater.quitAndInstall();
-    });
+    const { dialog, shell } = require('electron');
+
+    if (process.platform === 'darwin') {
+      // mac：只检测 + 引导手动下载
+      autoUpdater.autoDownload = false;
+      autoUpdater.on('update-available', async (info) => {
+        console.log('[auto-update] mac update available:', info && info.version);
+        const { response } = await dialog.showMessageBox({
+          type: 'info',
+          title: '发现新版本',
+          message: `发现新版本 ${info && info.version}，是否前往下载安装？`,
+          detail: '下载页面：http://tutor.hourofai.cn/updates/',
+          buttons: ['去下载', '稍后'],
+          defaultId: 0,
+          cancelId: 1,
+        });
+        if (response === 0) {
+          shell.openExternal('http://tutor.hourofai.cn/updates/');
+        }
+      });
+    } else {
+      // win/linux：自动下载并重启安装
+      autoUpdater.autoDownload = true;
+      autoUpdater.autoInstallOnAppQuit = false;
+      autoUpdater.on('update-downloaded', () => {
+        console.log('[auto-update] new version downloaded; installing…');
+        autoUpdater.quitAndInstall();
+      });
+    }
     autoUpdater.on('error', (err) => {
       console.log('[auto-update] error:', err && err.message);
     });
-    autoUpdater.on('update-available', () => console.log('[auto-update] update available'));
     autoUpdater.on('update-not-available', () => console.log('[auto-update] up to date'));
     // 延迟检查，避免与首屏启动竞争
     setTimeout(() => autoUpdater.checkForUpdates().catch((e) => {
