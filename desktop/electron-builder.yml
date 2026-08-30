@@ -4,6 +4,11 @@
 
 appId: com.deeptutor.desktopshell
 productName: DeepTutor
+# 自动更新源：发版时把 dist-electron/latest.yml + 安装包上传到这里
+# （服务器 nginx /updates/ 静态目录，见 deploy/desktop-release.sh）
+publish:
+  provider: generic
+  url: http://tutor.hourofai.cn/updates
 directories:
   output: dist-electron
   buildResources: build   # 应用图标 build/icon.icns|icon.ico|icon.png

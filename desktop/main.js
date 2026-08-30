@@ -81,6 +81,34 @@ function waitForPort(cb) {
   sock.on('error', () => { sock.destroy(); setTimeout(() => waitForPort(cb), 300); });
 }
 
+// --- 自动更新（electron-updater）---
+// 仅打包后启用；开发模式跳过。更新源在 electron-builder.yml 的 publish。
+// 策略：启动 5 秒后检查 → 有新版自动下载 → 下载完成自动重启安装。
+function setupAutoUpdater() {
+  if (!app.isPackaged) return;
+  try {
+    // eslint-disable-next-line global-require
+    const { autoUpdater } = require('electron-updater');
+    autoUpdater.autoDownload = true;
+    autoUpdater.autoInstallOnAppQuit = false;
+    autoUpdater.on('update-downloaded', () => {
+      console.log('[auto-update] new version downloaded; installing…');
+      autoUpdater.quitAndInstall();
+    });
+    autoUpdater.on('error', (err) => {
+      console.log('[auto-update] error:', err && err.message);
+    });
+    autoUpdater.on('update-available', () => console.log('[auto-update] update available'));
+    autoUpdater.on('update-not-available', () => console.log('[auto-update] up to date'));
+    // 延迟检查，避免与首屏启动竞争
+    setTimeout(() => autoUpdater.checkForUpdates().catch((e) => {
+      console.log('[auto-update] check failed:', e && e.message);
+    }), 5000);
+  } catch (err) {
+    console.log('[auto-update] disabled:', err && err.message);
+  }
+}
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
@@ -131,6 +159,7 @@ ipcMain.handle('dt:writeFile', async (_e, rel, content) => {
 app.whenReady().then(() => {
   startStandaloneServer();
   createWindow();
+  setupAutoUpdater();
 });
 
 app.on('window-all-closed', () => {
