@@ -168,6 +168,44 @@ async def test_bookmark_round_trip(store: SQLiteSessionStore) -> None:
 
 
 @pytest.mark.asyncio
+async def test_add_writes_a_new_entry_and_files_it(store: SQLiteSessionStore) -> None:
+    session_id = await _seed(store)
+    before = (await store.question_bank_stats())["total"]
+
+    outcome = await run_question_bank(
+        action="add",
+        _session_id=session_id,
+        question="Solve x² - 5x + 6 = 0",
+        question_type="计算",
+        correct_answer="x=2 或 x=3",
+        user_answer="x=2",
+        is_correct=False,
+        difficulty="medium",
+        explanation="十字相乘法分解 (x-2)(x-3)=0",
+        category="一元二次方程错题",
+        store=store,
+    )
+    assert outcome.ok, outcome.error
+    assert outcome.summary["is_correct"] is False
+    assert outcome.summary["created_category"] is True
+
+    stats = await store.question_bank_stats()
+    assert stats["total"] == before + 1
+    assert stats["wrong"] == before + 1
+
+    listing = await run_question_bank(action="list", category="一元二次方程错题", store=store)
+    assert listing.summary["count"] == 1
+    assert listing.summary["entry_ids"] == [outcome.summary["entry_id"]]
+
+
+@pytest.mark.asyncio
+async def test_add_without_question_is_an_actionable_error(store: SQLiteSessionStore) -> None:
+    outcome = await run_question_bank(action="add", _session_id="s1", store=store)
+    assert not outcome.ok
+    assert "`question` is required" in outcome.error
+
+
+@pytest.mark.asyncio
 async def test_mount_gate_follows_the_data(store: SQLiteSessionStore) -> None:
     assert store.has_question_bank_entries() is False
     await _seed(store)

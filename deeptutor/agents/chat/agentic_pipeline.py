@@ -1058,6 +1058,10 @@ class AgenticChatPipeline:
         exec_dir = task_dir / "exec" if task_dir is not None else None
         if tool_name == "rag":
             kwargs.setdefault("mode", "hybrid")
+        elif tool_name == "question_bank":
+            # ``add`` writes entries scoped to the current session; the id is
+            # injected so the model can neither choose nor forget it.
+            kwargs["_session_id"] = context.session_id or ""
         elif tool_name == "kb_files":
             # The report is read by the user as much as by the model, so it is
             # written in the turn's language. Injected server-side; the tool

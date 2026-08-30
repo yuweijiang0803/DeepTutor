@@ -32,11 +32,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import logging
+import time
 from typing import Any
+from uuid import uuid4
 
 logger = logging.getLogger(__name__)
 
-ACTIONS = ("overview", "list", "organize", "unfile", "bookmark")
+ACTIONS = ("overview", "list", "add", "organize", "unfile", "bookmark")
 
 FILTERS = ("all", "wrong", "bookmarked", "uncategorized")
 
@@ -328,6 +330,92 @@ async def _bookmark(store: Any, *, entry_ids: Any, bookmarked: bool) -> Question
     )
 
 
+async def _add(
+    store: Any,
+    *,
+    session_id: str,
+    question: str,
+    question_type: str,
+    correct_answer: str,
+    explanation: str,
+    difficulty: str,
+    user_answer: str,
+    is_correct: bool,
+    category: str,
+) -> QuestionBankOutcome:
+    """Write a brand-new entry into the bank (the only action that does).
+
+    ``session_id`` is injected by the runtime (never a model-chosen value);
+    the store scopes every write to the current user and that session.
+    """
+    q = (question or "").strip()
+    if not q:
+        return QuestionBankOutcome(
+            ok=False,
+            action="add",
+            error="`question` is required — the question text to add to the bank.",
+        )
+    if not (session_id or "").strip():
+        return QuestionBankOutcome(
+            ok=False,
+            action="add",
+            error="No session context available; nothing was written.",
+        )
+
+    question_id = f"llm_{int(time.time() * 1000)}_{uuid4().hex[:6]}"
+    item: dict[str, Any] = {
+        "question_id": question_id,
+        "question": q,
+        "question_type": (question_type or "").strip()[:16],
+        "correct_answer": (correct_answer or "").strip(),
+        "explanation": (explanation or "").strip(),
+        "difficulty": (difficulty or "").strip(),
+        "user_answer": (user_answer or "").strip(),
+        "is_correct": bool(is_correct),
+    }
+    try:
+        await store.upsert_notebook_entries(session_id, [item])
+    except Exception as exc:
+        logger.warning("question_bank: add failed", exc_info=True)
+        return QuestionBankOutcome(
+            ok=False,
+            action="add",
+            error=f"Could not save the question: {exc}",
+        )
+
+    entry = await store.find_notebook_entry(session_id, question_id, turn_id="")
+    if entry is None:
+        return QuestionBankOutcome(
+            ok=False,
+            action="add",
+            error="The question was saved but could not be located for filing.",
+        )
+    entry_id = int(entry["id"])
+
+    summary: dict[str, Any] = {
+        "entry_id": entry_id,
+        "question": _truncate(q, MAX_QUESTION_PREVIEW),
+        "is_correct": item["is_correct"],
+    }
+    parts = [f"Added question {entry_id} to the question bank."]
+    if category:
+        name = (category or "").strip()[:MAX_CATEGORY_NAME]
+        if name:
+            category_row, created = await _resolve_or_create_category(store, name)
+            await store.link_entries_to_category(
+                [entry_id], int(category_row["id"]), link=True
+            )
+            parts.append(
+                f"Filed it under '{category_row['name']}'"
+                + (" (newly created)." if created else ".")
+            )
+            summary["category"] = category_row["name"]
+            summary["category_id"] = int(category_row["id"])
+            summary["created_category"] = created
+    parts.append("The learner sees it under Learning Space → Question Bank.")
+    return QuestionBankOutcome(ok=True, action="add", text=" ".join(parts), summary=summary)
+
+
 async def run_question_bank(
     *,
     action: str = "overview",
@@ -337,6 +425,17 @@ async def run_question_bank(
     entry_ids: Any = None,
     bookmarked: bool = True,
     limit: int = DEFAULT_LIST_LIMIT,
+    # ``add`` payload — injected session context plus the entry fields the
+    # model fills in. Underscored on purpose so the tool schema never
+    # advertises ``_session_id`` to the model.
+    _session_id: str = "",
+    question: str = "",
+    question_type: str = "",
+    correct_answer: str = "",
+    explanation: str = "",
+    difficulty: str = "",
+    user_answer: str = "",
+    is_correct: bool = False,
     store: Any = None,
 ) -> QuestionBankOutcome:
     """Run one question-bank action. Never raises — errors come back typed."""
@@ -358,6 +457,19 @@ async def run_question_bank(
                 category=category,
                 search=search,
                 limit=limit,
+            )
+        if verb == "add":
+            return await _add(
+                resolved,
+                session_id=_session_id,
+                question=question,
+                question_type=question_type,
+                correct_answer=correct_answer,
+                explanation=explanation,
+                difficulty=difficulty,
+                user_answer=user_answer,
+                is_correct=is_correct,
+                category=category,
             )
         if verb in {"organize", "unfile"}:
             return await _organize(

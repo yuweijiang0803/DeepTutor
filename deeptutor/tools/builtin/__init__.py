@@ -1041,13 +1041,16 @@ class QuestionBankTool(_PromptHintsMixin, BaseTool):
         return ToolDefinition(
             name="question_bank",
             description=(
-                "Read and organise the learner's question bank — the graded "
-                "quiz questions saved under Learning Space → Question Bank. "
-                "This is where wrong answers and quiz history live; it is NOT "
-                "the notebook (`write_note`). Use it whenever the learner asks "
-                "to review, group, file, or tidy their questions or mistakes. "
+                "Read, write and organise the learner's question bank — the "
+                "graded quiz questions saved under Learning Space → Question "
+                "Bank. This is where wrong answers and quiz history live; it "
+                "is NOT the notebook (`write_note`). Use it whenever the "
+                "learner asks to review, group, file, tidy, or ADD questions "
+                "or mistakes. "
                 "action='overview' for counts + existing categories; "
                 "action='list' to see entries (each prefixed with its id); "
+                "action='add' to save a NEW question into the bank "
+                "(question + answer + correctness, optional category); "
                 "action='organize' to file entry_ids into a category by name "
                 "(the category is created if it does not exist); "
                 "action='unfile' to remove them; "
@@ -1059,7 +1062,7 @@ class QuestionBankTool(_PromptHintsMixin, BaseTool):
                     type="string",
                     description=(
                         "'overview' (counts + categories, needs nothing else), "
-                        "'list', 'organize', 'unfile', or 'bookmark'."
+                        "'list', 'add', 'organize', 'unfile', or 'bookmark'."
                     ),
                     enum=list(QB_ACTIONS),
                 ),
@@ -1112,6 +1115,55 @@ class QuestionBankTool(_PromptHintsMixin, BaseTool):
                     description="For action='list'. Max entries to return (default 20, max 100).",
                     required=False,
                 ),
+                ToolParameter(
+                    name="question",
+                    type="string",
+                    description=(
+                        "For action='add'. The full question text (required for 'add')."
+                    ),
+                    required=False,
+                ),
+                ToolParameter(
+                    name="question_type",
+                    type="string",
+                    description=(
+                        "For action='add'. Question type, e.g. 计算/应用题/几何/填空/选择/判断."
+                    ),
+                    required=False,
+                ),
+                ToolParameter(
+                    name="correct_answer",
+                    type="string",
+                    description="For action='add'. The reference/correct answer.",
+                    required=False,
+                ),
+                ToolParameter(
+                    name="explanation",
+                    type="string",
+                    description="For action='add'. Optional worked explanation.",
+                    required=False,
+                ),
+                ToolParameter(
+                    name="difficulty",
+                    type="string",
+                    description="For action='add'. Optional difficulty: easy/medium/hard.",
+                    required=False,
+                ),
+                ToolParameter(
+                    name="user_answer",
+                    type="string",
+                    description="For action='add'. The learner's own answer.",
+                    required=False,
+                ),
+                ToolParameter(
+                    name="is_correct",
+                    type="boolean",
+                    description=(
+                        "For action='add'. Whether the learner answered it correctly. "
+                        "Default false (wrong questions are the usual add)."
+                    ),
+                    required=False,
+                ),
             ],
         )
 
@@ -1128,6 +1180,15 @@ class QuestionBankTool(_PromptHintsMixin, BaseTool):
             entry_ids=kwargs.get("entry_ids"),
             bookmarked=bool(kwargs.get("bookmarked", True)),
             limit=int(kwargs.get("limit") or 20),
+            # Injected server-side; never a model-chosen value.
+            _session_id=str(kwargs.get("_session_id") or ""),
+            question=str(kwargs.get("question") or ""),
+            question_type=str(kwargs.get("question_type") or ""),
+            correct_answer=str(kwargs.get("correct_answer") or ""),
+            explanation=str(kwargs.get("explanation") or ""),
+            difficulty=str(kwargs.get("difficulty") or ""),
+            user_answer=str(kwargs.get("user_answer") or ""),
+            is_correct=bool(kwargs.get("is_correct", False)),
         )
         if not outcome.ok:
             return ToolResult(content=outcome.error, success=False)
