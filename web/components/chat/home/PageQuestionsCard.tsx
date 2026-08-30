@@ -193,8 +193,10 @@ const HANDLES: Array<{ mode: DragMode; left: string; top: string }> = [
 
 const MAX_ZOOM = 8;
 
-/** 扫描效果滤镜：灰度 + 增强对比 + 提亮，背景发白便于打印。 */
-const SCAN_FILTER = "grayscale(1) contrast(1.45) brightness(1.08)";
+/** 扫描效果阈值范围（亮度低于该值 → 黑，否则 → 白）。 */
+const SCAN_THRESHOLD_MIN = 60;
+const SCAN_THRESHOLD_MAX = 220;
+const SCAN_THRESHOLD_DEFAULT = 150;
 
 function CropImageModal({
   src,
@@ -212,10 +214,12 @@ function CropImageModal({
   onConfirm: (dataUrl: string) => void;
 }) {
   const imgRef = useRef<HTMLImageElement>(null);
+  const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const [sel, setSel] = useState<CropSelection | null>(initSelection ?? null);
   const [mode, setMode] = useState<"crop" | "pan">("crop");
   const [scanMode, setScanMode] = useState(false);
+  const [threshold, setThreshold] = useState(SCAN_THRESHOLD_DEFAULT);
   const [activeMode, setActiveMode] = useState<DragMode | null>(null);
   const [panning, setPanning] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -308,6 +312,28 @@ function CropImageModal({
     return () => el.removeEventListener("wheel", onWheel);
   }, [zoom, pan, base, viewSize]);
 
+  // 扫描效果预览：按阈值对原图做二值化，画到覆盖在 img 上的 canvas
+  useEffect(() => {
+    const cv = previewCanvasRef.current;
+    const imgEl = imgRef.current;
+    if (!scanMode || !cv || !imgEl || base.w === 0) return;
+    cv.width = Math.max(1, Math.round(dispW));
+    cv.height = Math.max(1, Math.round(dispH));
+    const ctx = cv.getContext("2d");
+    if (!ctx) return;
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    ctx.drawImage(imgEl, 0, 0, cv.width, cv.height);
+    const data = ctx.getImageData(0, 0, cv.width, cv.height);
+    const px = data.data;
+    const t = threshold;
+    for (let i = 0; i < px.length; i += 4) {
+      const lum = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+      const v = lum < t ? 0 : 255;
+      px[i] = px[i + 1] = px[i + 2] = v;
+    }
+    ctx.putImageData(data, 0, 0);
+  }, [scanMode, threshold, src, base, zoom, dispW, dispH]);
+
   const normPoint = (e: React.PointerEvent) => {
     const rect = imgRef.current!.getBoundingClientRect();
     return {
@@ -373,8 +399,19 @@ function CropImageModal({
     canvas.height = h;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    if (scanMode) ctx.filter = SCAN_FILTER;
     ctx.drawImage(imgEl, x, y, w, h, 0, 0, w, h);
+    if (scanMode) {
+      // 扫描效果：按阈值二值化（亮度 < threshold → 黑，否则 → 白）
+      const data = ctx.getImageData(0, 0, w, h);
+      const px = data.data;
+      const t = threshold;
+      for (let i = 0; i < px.length; i += 4) {
+        const lum = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+        const v = lum < t ? 0 : 255;
+        px[i] = px[i + 1] = px[i + 2] = v;
+      }
+      ctx.putImageData(data, 0, 0);
+    }
     onConfirm(canvas.toDataURL("image/png"));
   };
 
@@ -457,7 +494,7 @@ function CropImageModal({
           <button
             type="button"
             onClick={() => setScanMode((v) => !v)}
-            title="灰度+增强对比，背景发白，方便打印"
+            title="灰度二值化，背景发白，方便打印"
             className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[11.5px] transition-colors ${
               scanMode
                 ? "border-[var(--primary)]/60 bg-[var(--primary)]/10 text-[var(--primary)]"
@@ -472,6 +509,25 @@ function CropImageModal({
             </span>
           )}
         </div>
+
+        {scanMode && (
+          <div className="mb-2 flex shrink-0 items-center gap-2">
+            <span className="text-[11px] text-[var(--muted-foreground)]">
+              阈值
+            </span>
+            <input
+              type="range"
+              min={SCAN_THRESHOLD_MIN}
+              max={SCAN_THRESHOLD_MAX}
+              value={threshold}
+              onChange={(e) => setThreshold(Number(e.target.value))}
+              className="min-w-0 flex-1 accent-[var(--primary)]"
+            />
+            <span className="w-8 text-right text-[11px] tabular-nums text-[var(--muted-foreground)]">
+              {threshold}
+            </span>
+          </div>
+        )}
 
         <div
           ref={viewportRef}
@@ -508,8 +564,13 @@ function CropImageModal({
               onLoad={handleLoad}
               onError={() => setLoadError(true)}
               className="pointer-events-none block h-full w-full"
-              style={{ filter: scanMode ? SCAN_FILTER : undefined }}
             />
+            {scanMode && (
+              <canvas
+                ref={previewCanvasRef}
+                className="pointer-events-none absolute inset-0"
+              />
+            )}
 
             {sel && sel.w > 0.005 && sel.h > 0.005 ? (
               <div
