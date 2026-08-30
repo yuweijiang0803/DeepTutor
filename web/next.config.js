@@ -75,20 +75,24 @@ const NEXT_PUBLIC_AUTH_ENABLED = normalizeBoolean(
 process.env.NEXT_PUBLIC_API_BASE = NEXT_PUBLIC_API_BASE;
 process.env.NEXT_PUBLIC_AUTH_ENABLED = NEXT_PUBLIC_AUTH_ENABLED;
 
-// Resolve the build-time application version from the single source of
-// truth at ``deeptutor/__version__.py``. The Python file is parsed with a
-// small regex so the JS build does not need to execute Python.
-const APP_VERSION = (() => {
-  try {
-    const text = fs.readFileSync(
-      path.resolve(__dirname, "..", "deeptutor", "__version__.py"),
-      "utf8",
-    );
-    const match = text.match(/__version__\s*=\s*["']([^"']+)["']/);
-    if (match) return match[1];
-  } catch {}
-  return "";
-})();
+// Resolve the build-time application version. A pre-set NEXT_PUBLIC_APP_VERSION
+// wins (the desktop shell injects its own display version, e.g. 1.6.0.1);
+// otherwise fall back to the single source of truth at
+// ``deeptutor/__version__.py``. The Python file is parsed with a small regex
+// so the JS build does not need to execute Python.
+const APP_VERSION =
+  process.env.NEXT_PUBLIC_APP_VERSION ||
+  (() => {
+    try {
+      const text = fs.readFileSync(
+        path.resolve(__dirname, "..", "deeptutor", "__version__.py"),
+        "utf8",
+      );
+      const match = text.match(/__version__\s*=\s*["']([^"']+)["']/);
+      if (match) return match[1];
+    } catch {}
+    return "";
+  })();
 
 const nextConfig = {
   // Keep the production build used by `deeptutor start` separate from the
