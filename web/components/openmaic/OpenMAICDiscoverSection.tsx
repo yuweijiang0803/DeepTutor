@@ -15,7 +15,7 @@ function CourseCard({ course }: { course: OpenMAICCourse }) {
   const cover = course.cover;
   return (
     <a
-      href={course.watch_url}
+      href={course.lesson_url}
       target="_blank"
       rel="noopener noreferrer"
       className="group flex flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)] transition-all duration-150 hover:-translate-y-0.5 hover:border-[var(--foreground)]/20 hover:shadow-[0_6px_20px_-12px_rgba(0,0,0,0.25)]"

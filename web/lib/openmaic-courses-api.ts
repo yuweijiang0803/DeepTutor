@@ -71,8 +71,8 @@ export interface OpenMAICCourse {
   updatedAt: number;
   publishedAt?: number;
   cover?: OpenMAICSlideCover;
-  /** OpenMAIC watch 播放页地址（DeepTutor 内嵌 iframe 用）。 */
-  watch_url: string;
+  /** OpenMAIC 公开课页面（新标签页打开，免登录）。 */
+  lesson_url: string;
 }
 
 export async function listOpenMAICCourses(options?: {

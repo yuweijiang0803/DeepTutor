@@ -2,9 +2,11 @@
 
 OpenMAIC runs its own public "discover" feed of published, non-deleted
 courses (`GET /api/discover`, share-link model, no login).  DeepTutor proxies
-that feed so learners can browse and play OpenMAIC courses without leaving
-DeepTutor.  Playing itself stays in OpenMAIC (embedded watch player), matching
-the agreed split: OpenMAIC produces content, DeepTutor fronts it.
+that feed so learners can browse OpenMAIC courses from DeepTutor; cards open
+the OpenMAIC classroom page (`/classroom/<id>`) directly in a new tab.
+Lessons generated inside DeepTutor (course detail / chat) are still embedded
+through the watch player — matching the agreed split: OpenMAIC produces
+content, DeepTutor fronts it.
 
 Base URL resolution mirrors ``deeptutor/tools/generate_explanation.py``:
 ``OPENMAIC_BASE_URL`` wins, otherwise the production domain.
@@ -29,11 +31,12 @@ router = APIRouter()
 
 @router.get("/discover")
 async def discover_courses() -> dict[str, object]:
-    """Published OpenMAIC courses, mapped to playable watch URLs.
+    """Published OpenMAIC courses, mapped to playable lesson URLs.
 
     The raw OpenMAIC payload is passed through unchanged (id / name /
-    description / updatedAt / publishedAt / cover), plus a ``watch_url`` each
-    card can open in the embedded player.
+    description / updatedAt / publishedAt / cover), plus a ``lesson_url`` each
+    card can open: the OpenMAIC classroom page for that course. Classroom
+    reads are public by id (share-link model) — no login required.
     """
     try:
         async with aiohttp.ClientSession() as session:
@@ -65,8 +68,8 @@ async def discover_courses() -> dict[str, object]:
             {
                 **raw,
                 "id": course_id,
-                # OpenMAIC's watch player page — the iframe target for DeepTutor.
-                "watch_url": f"{OPENMAIC_BASE_URL}/watch/{course_id}",
+                # OpenMAIC 的公开课页面 — DeepTutor 卡片新标签页直达的目标。
+                "lesson_url": f"{OPENMAIC_BASE_URL}/classroom/{course_id}",
             }
         )
     return {"base_url": OPENMAIC_BASE_URL, "courses": normalized}
