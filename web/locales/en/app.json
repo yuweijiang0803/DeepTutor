@@ -1838,6 +1838,8 @@
   "subjects.pending": "Pending",
   "subjects.start": "Start learning",
   "subjects.continue": "Continue learning",
+  "subjects.mastered": "mastered",
+  "subjects.learning": "learning",
   "subjects.preparing": "Preparing…",
   "subjects.startError": "Failed to create the learning path. Please retry.",
   "subjects.loadError": "Failed to load this subject.",

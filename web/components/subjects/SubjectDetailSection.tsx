@@ -1,11 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowUpRight,
   BookOpenCheck,
+  Circle,
+  CircleCheck,
+  CircleDot,
   CirclePlay,
   FlaskConical,
   Layers,
@@ -26,9 +29,11 @@ import {
   type SubjectKnowledgePoint,
 } from "@/lib/subjects-api";
 import {
-  fetchProgress,
+  fetchAllProgress,
+  fetchMasteryMap,
   initFromSubject,
-  type ProgressDetail,
+  type MasteryMapResult,
+  type ObjectiveStatus,
 } from "@/lib/learning-api";
 import { newMasteryPathChatUrl } from "@/lib/chat-launch-intent";
 
@@ -40,15 +45,30 @@ const KP_META: Record<string, { icon: LucideIcon; label: string }> = {
   design: { icon: FlaskConical, label: "knowledgeType.design" },
 };
 
+/** 掌握度状态视觉，与 /space/learning 的 PathMap 保持一致。 */
+const STATUS_META: Record<ObjectiveStatus, { icon: LucideIcon; className: string }> = {
+  mastered: { icon: CircleCheck, className: "text-green-500" },
+  learning: { icon: CircleDot, className: "text-yellow-500" },
+  new: { icon: Circle, className: "text-[var(--muted-foreground)]" },
+};
+
 function kpIcon(kp: SubjectKnowledgePoint) {
   const fallback = KP_META.concept;
   return KP_META[kp.kp_type] ?? fallback;
 }
 
-function KnowledgePointCard({ kp }: { kp: SubjectKnowledgePoint }) {
+function KnowledgePointCard({
+  kp,
+  status,
+}: {
+  kp: SubjectKnowledgePoint;
+  /** null = 尚未建精通之路，无掌握度数据。 */
+  status?: ObjectiveStatus | null;
+}) {
   const { t } = useTranslation();
   const meta = kpIcon(kp);
   const Icon = meta.icon;
+  const StatusIcon = status ? STATUS_META[status].icon : null;
   return (
     <div className="flex items-center gap-3 rounded-lg border border-[var(--border)]/60 bg-[var(--card)] px-3 py-2.5">
       <span
@@ -58,9 +78,18 @@ function KnowledgePointCard({ kp }: { kp: SubjectKnowledgePoint }) {
         <Icon size={14} strokeWidth={1.7} />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[13px] font-medium text-[var(--foreground)]">
-          {kp.name}
-        </p>
+        <div className="flex items-center gap-1.5">
+          {status && StatusIcon ? (
+            <StatusIcon
+              size={13}
+              strokeWidth={1.8}
+              className={`shrink-0 ${STATUS_META[status].className}`}
+            />
+          ) : null}
+          <p className="truncate text-[13px] font-medium text-[var(--foreground)]">
+            {kp.name}
+          </p>
+        </div>
         <p className="text-[11px] text-[var(--muted-foreground)]">
           {t(meta.label)}
           {kp.questions.length > 0
@@ -87,7 +116,7 @@ function KnowledgePointCard({ kp }: { kp: SubjectKnowledgePoint }) {
  * 知识点卡片显示类型与题库数量；OpenMAIC 课件生成后展示"可播放"状态。
  */
 export default function SubjectDetailSection() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const router = useRouter();
   const params = useParams<{ subjectId: string }>();
   const subjectId = String(params.subjectId || "");
@@ -96,6 +125,7 @@ export default function SubjectDetailSection() {
   const [error, setError] = useState("");
   /** null = 正在探测该学科是否已有精通之路 path。 */
   const [pathExists, setPathExists] = useState<boolean | null>(null);
+  const [mastery, setMastery] = useState<MasteryMapResult | null>(null);
   const [starting, setStarting] = useState(false);
 
   const load = useCallback(() => {
@@ -103,18 +133,39 @@ export default function SubjectDetailSection() {
     setLoading(true);
     setError("");
     setPathExists(null);
+    setMastery(null);
     void getSubject(subjectId, { force: true })
       .then(setSubject)
       .catch(() => setError(t("subjects.loadError")))
       .finally(() => setLoading(false));
-    void fetchProgress(subjectId)
-      .then((progress: ProgressDetail) => {
-        setPathExists((progress.modules ?? []).length > 0);
+    // 探测该学科是否已有精通之路 path。走只读的 fetchAllProgress（按
+    // book_id 匹配），避免 fetchProgress 的 get_or_create 副作用创建空 path。
+    void fetchAllProgress()
+      .then(async (result) => {
+        const hasPath = result.summaries.some(
+          (s) => s.book_id === subjectId && s.kp_count > 0,
+        );
+        setPathExists(hasPath);
+        if (hasPath) {
+          try {
+            setMastery(await fetchMasteryMap(subjectId));
+          } catch {
+            setMastery(null);
+          }
+        }
       })
       .catch(() => setPathExists(false));
   }, [subjectId, t]);
 
   useEffect(load, [load]);
+
+  /** kp_id → 掌握度状态，用于目录树上的状态徽标。 */
+  const kpStatus = useMemo(() => {
+    const index = new Map<string, ObjectiveStatus>();
+    for (const module of mastery?.map.modules ?? [])
+      for (const kp of module.knowledge_points) index.set(kp.id, kp.status);
+    return index;
+  }, [mastery]);
 
   const startLearning = useCallback(async () => {
     if (!subjectId || starting) return;
@@ -180,6 +231,11 @@ export default function SubjectDetailSection() {
     0,
   );
 
+  const masteryCounts = mastery?.map.counts;
+  const masteryPct = masteryCounts?.total
+    ? Math.round((masteryCounts.mastered / masteryCounts.total) * 100)
+    : 0;
+
   return (
     <div>
       <SpaceSectionHeader
@@ -216,6 +272,32 @@ export default function SubjectDetailSection() {
           </div>
         }
       />
+
+      {masteryCounts && masteryCounts.total > 0 ? (
+        <div className="mb-6 rounded-xl border border-[var(--border)] bg-[var(--card)] p-4">
+          <div className="mb-2 flex items-baseline justify-between gap-3">
+            <span className="text-[13px] text-[var(--muted-foreground)]">
+              {masteryCounts.mastered}/{masteryCounts.total} {t("subjects.mastered")}
+              {masteryCounts.learning > 0 ? (
+                <>
+                  {" · "}
+                  {masteryCounts.learning} {t("subjects.learning")}
+                </>
+              ) : null}
+            </span>
+            <span className="text-[13px] font-semibold tabular-nums text-[var(--foreground)]">
+              {masteryPct}%
+            </span>
+          </div>
+          <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--accent)]">
+            <div
+              className="h-full rounded-full bg-green-500 transition-all"
+              style={{ width: `${masteryPct}%` }}
+            />
+          </div>
+        </div>
+      ) : null}
+
       <div className="space-y-6">
         {subject.modules.map((module) => (
           <section key={module.id}>
@@ -225,7 +307,11 @@ export default function SubjectDetailSection() {
             </h2>
             <div className="grid gap-2 sm:grid-cols-2">
               {module.knowledge_points.map((kp) => (
-                <KnowledgePointCard key={kp.id} kp={kp} />
+                <KnowledgePointCard
+                  key={kp.id}
+                  kp={kp}
+                  status={kpStatus.get(kp.id) ?? null}
+                />
               ))}
             </div>
           </section>

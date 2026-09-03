@@ -2000,6 +2000,8 @@
   "subjects.pending": "待生成",
   "subjects.start": "开始学习",
   "subjects.continue": "继续学习",
+  "subjects.mastered": "已掌握",
+  "subjects.learning": "学习中",
   "subjects.preparing": "准备中…",
   "subjects.startError": "学习路径创建失败，请重试。",
   "subjects.loadError": "学科不存在或加载失败。",
