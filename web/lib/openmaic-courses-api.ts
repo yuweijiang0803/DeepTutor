@@ -1,35 +1,78 @@
 import { apiFetch, apiUrl } from "@/lib/api";
 import { invalidateClientCache, withClientCache } from "@/lib/client-cache";
 
-/** OpenMAIC 公开课封面第一页 slide（canvas）。首版仅用于标题/配色摘要。 */
+/** 封面 slide 的最小结构（与 OpenMAIC /api/discover 返回的 canvas 对齐）。 */
+export interface OpenMAICSlideTheme {
+  backgroundColor?: string;
+  fontColor?: string;
+  fontName?: string;
+  themeColors?: string[];
+}
+
+export interface OpenMAICSlideBackground {
+  type?: "solid" | "image" | "gradient";
+  color?: string;
+  image?: string | { src?: string; size?: string };
+  gradientColor?: string | string[];
+}
+
+export interface OpenMAICSlideElement {
+  id?: string;
+  type?: string;
+  top?: number;
+  left?: number;
+  width?: number;
+  height?: number;
+  rotate?: number;
+  /** 文字/公式等元素默认前景色 */
+  color?: string;
+  defaultColor?: string;
+  defaultFontName?: string;
+  defaultFontSize?: number;
+  fill?: string;
+  stroke?: string;
+  opacity?: number;
+  /** 文字在文本框内的垂直对齐 */
+  vAlign?: "top" | "middle" | "bottom";
+  lineHeight?: number;
+  wordSpace?: number;
+  align?: string;
+  /** 形状：SVG viewBox / path */
+  viewBox?: number[];
+  path?: string;
+  /** 形状是否保持宽高比（icon 类） */
+  fixedRatio?: boolean;
+  shadow?: { h: number; v: number; blur: number; color: string };
+  /** text 元素：内联样式 HTML（font-size 等为视口 px） */
+  content?: string;
+  /** latex 元素：KaTeX 渲染好的 HTML */
+  html?: string;
+  /** latex 元素：LaTeX 源串（html 缺失时的兜底） */
+  latex?: string;
+  /** image 元素：绝对地址 */
+  src?: string;
+  poster?: string;
+}
+
+export interface OpenMAICSlideCover {
+  id?: string;
+  theme?: OpenMAICSlideTheme;
+  background?: OpenMAICSlideBackground;
+  elements?: OpenMAICSlideElement[];
+  viewportSize?: number | number[] | { width?: number; height?: number };
+  viewportRatio?: number;
+}
+
+/** OpenMAIC 公开课封面第一页 slide（canvas）。 */
 export interface OpenMAICCourse {
   id: string;
   name: string;
   description?: string;
   updatedAt: number;
   publishedAt?: number;
-  cover?: {
-    theme?: { backgroundColor?: string };
-    elements?: { type: string; content?: string }[];
-  };
+  cover?: OpenMAICSlideCover;
   /** OpenMAIC watch 播放页地址（DeepTutor 内嵌 iframe 用）。 */
   watch_url: string;
-}
-
-/** 从 cover 首屏提取标题文本（首个 text element 的纯文本）。 */
-export function coverTitle(course: OpenMAICCourse): string {
-  const elements = course.cover?.elements ?? [];
-  for (const el of elements) {
-    if (el.type === "text" && el.content) {
-      return el.content.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
-    }
-  }
-  return "";
-}
-
-/** 封面占位背景色：优先取 slide theme，缺省用蓝色渐变。 */
-export function coverBackground(course: OpenMAICCourse): string {
-  return course.cover?.theme?.backgroundColor ?? "#eef2ff";
 }
 
 export async function listOpenMAICCourses(options?: {

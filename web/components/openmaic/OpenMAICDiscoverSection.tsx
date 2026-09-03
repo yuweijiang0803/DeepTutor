@@ -6,34 +6,29 @@ import { BookOpenCheck, Loader2, Play } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import SpaceSectionHeader from "@/components/space/SpaceSectionHeader";
+import OpenMAICSlideCover from "@/components/openmaic/OpenMAICSlideCover";
 import {
-  coverBackground,
-  coverTitle,
   listOpenMAICCourses,
   type OpenMAICCourse,
 } from "@/lib/openmaic-courses-api";
 
 function CourseCard({ course }: { course: OpenMAICCourse }) {
-  const title = coverTitle(course) || course.name;
-  const background = coverBackground(course);
+  const cover = course.cover;
   return (
     <Link
       href={`/space/openmaic/${course.id}`}
       className="group flex flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)] transition-all duration-150 hover:-translate-y-0.5 hover:border-[var(--foreground)]/20 hover:shadow-[0_6px_20px_-12px_rgba(0,0,0,0.25)]"
     >
-      {/* 封面：真实 cover 做文字摘要 + 主题底色，无 cover 用渐变占位 */}
-      <div
-        className="relative flex aspect-video w-full items-center justify-center overflow-hidden px-4"
-        style={{ backgroundColor: background }}
-      >
-        {title ? (
-          <p className="line-clamp-3 text-center text-[14px] font-semibold leading-snug text-[var(--foreground)]">
-            {title}
-          </p>
+      {/* 封面：真实 cover 用轻量渲染器画出第一页；无 cover 时用占位 */}
+      <div className="relative w-full overflow-hidden bg-[#eef2ff]">
+        {cover ? (
+          <OpenMAICSlideCover cover={cover} />
         ) : (
-          <span className="text-[13px] text-[var(--muted-foreground)]">
-            {course.name}
-          </span>
+          <div className="flex aspect-video w-full items-center justify-center px-4">
+            <span className="text-center text-[13px] text-[var(--muted-foreground)]">
+              {course.name}
+            </span>
+          </div>
         )}
         <span className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-[var(--foreground)]/90 text-[var(--background)] opacity-0 transition-opacity group-hover:opacity-100">
           <Play size={12} strokeWidth={2} className="ml-0.5" />
