@@ -1,0 +1,208 @@
+{
+  "id": "math-rjb-7a",
+  "name": "初中数学",
+  "stage": "junior",
+  "grade": "七年级上册",
+  "textbook": "人教版",
+  "status": "active",
+  "modules": [
+    {
+      "id": "math-rjb-7a-u1",
+      "name": "第一章 有理数",
+      "order_no": 1,
+      "pass_threshold": 0.7,
+      "knowledge_points": [
+        {
+          "id": "math-rjb-7a-u1-k1",
+          "name": "正数和负数",
+          "kp_type": "concept",
+          "order_no": 1,
+          "questions": []
+        },
+        {
+          "id": "math-rjb-7a-u1-k2",
+          "name": "有理数与数轴",
+          "kp_type": "concept",
+          "order_no": 2,
+          "questions": []
+        },
+        {
+          "id": "math-rjb-7a-u1-k3",
+          "name": "相反数",
+          "kp_type": "concept",
+          "order_no": 3,
+          "questions": []
+        },
+        {
+          "id": "math-rjb-7a-u1-k4",
+          "name": "绝对值",
+          "kp_type": "procedure",
+          "order_no": 4,
+          "questions": [
+            {
+              "id": "math-rjb-7a-u1-k4-q1",
+              "question": "|-3| 等于（ ）",
+              "q_type": "choice",
+              "options": ["3", "-3", "0", "±3"],
+              "answer": "A",
+              "explanation": "绝对值表示数到原点的距离，|-3| = 3。",
+              "difficulty": "easy"
+            },
+            {
+              "id": "math-rjb-7a-u1-k4-q2",
+              "question": "绝对值等于 5 的数有（ ）",
+              "q_type": "choice",
+              "options": ["1 个", "2 个", "3 个", "无数个"],
+              "answer": "B",
+              "explanation": "到原点距离为 5 的点有两个：5 和 -5。",
+              "difficulty": "easy"
+            }
+          ]
+        },
+        {
+          "id": "math-rjb-7a-u1-k5",
+          "name": "有理数的加减法",
+          "kp_type": "procedure",
+          "order_no": 5,
+          "questions": []
+        },
+        {
+          "id": "math-rjb-7a-u1-k6",
+          "name": "有理数的乘除法",
+          "kp_type": "procedure",
+          "order_no": 6,
+          "questions": []
+        },
+        {
+          "id": "math-rjb-7a-u1-k7",
+          "name": "有理数的乘方",
+          "kp_type": "procedure",
+          "order_no": 7,
+          "questions": []
+        },
+        {
+          "id": "math-rjb-7a-u1-k8",
+          "name": "科学记数法与近似数",
+          "kp_type": "memory",
+          "order_no": 8,
+          "questions": []
+        }
+      ]
+    },
+    {
+      "id": "math-rjb-7a-u2",
+      "name": "第二章 整式的加减",
+      "order_no": 2,
+      "pass_threshold": 0.7,
+      "knowledge_points": [
+        {
+          "id": "math-rjb-7a-u2-k1",
+          "name": "整式与单项式",
+          "kp_type": "concept",
+          "order_no": 1,
+          "questions": []
+        },
+        {
+          "id": "math-rjb-7a-u2-k2",
+          "name": "同类项与合并同类项",
+          "kp_type": "procedure",
+          "order_no": 2,
+          "questions": []
+        },
+        {
+          "id": "math-rjb-7a-u2-k3",
+          "name": "去括号",
+          "kp_type": "procedure",
+          "order_no": 3,
+          "questions": []
+        },
+        {
+          "id": "math-rjb-7a-u2-k4",
+          "name": "整式的加减运算",
+          "kp_type": "procedure",
+          "order_no": 4,
+          "questions": []
+        }
+      ]
+    },
+    {
+      "id": "math-rjb-7a-u3",
+      "name": "第三章 一元一次方程",
+      "order_no": 3,
+      "pass_threshold": 0.7,
+      "knowledge_points": [
+        {
+          "id": "math-rjb-7a-u3-k1",
+          "name": "一元一次方程的概念",
+          "kp_type": "concept",
+          "order_no": 1,
+          "questions": []
+        },
+        {
+          "id": "math-rjb-7a-u3-k2",
+          "name": "等式的性质",
+          "kp_type": "concept",
+          "order_no": 2,
+          "questions": []
+        },
+        {
+          "id": "math-rjb-7a-u3-k3",
+          "name": "移项与合并求解",
+          "kp_type": "procedure",
+          "order_no": 3,
+          "questions": []
+        },
+        {
+          "id": "math-rjb-7a-u3-k4",
+          "name": "去括号与去分母解方程",
+          "kp_type": "procedure",
+          "order_no": 4,
+          "questions": []
+        },
+        {
+          "id": "math-rjb-7a-u3-k5",
+          "name": "实际问题与一元一次方程",
+          "kp_type": "procedure",
+          "order_no": 5,
+          "questions": []
+        }
+      ]
+    },
+    {
+      "id": "math-rjb-7a-u4",
+      "name": "第四章 几何图形初步",
+      "order_no": 4,
+      "pass_threshold": 0.7,
+      "knowledge_points": [
+        {
+          "id": "math-rjb-7a-u4-k1",
+          "name": "几何图形与立体图形",
+          "kp_type": "concept",
+          "order_no": 1,
+          "questions": []
+        },
+        {
+          "id": "math-rjb-7a-u4-k2",
+          "name": "直线、射线、线段",
+          "kp_type": "concept",
+          "order_no": 2,
+          "questions": []
+        },
+        {
+          "id": "math-rjb-7a-u4-k3",
+          "name": "角的概念与度量",
+          "kp_type": "concept",
+          "order_no": 3,
+          "questions": []
+        },
+        {
+          "id": "math-rjb-7a-u4-k4",
+          "name": "角的运算与余角补角",
+          "kp_type": "procedure",
+          "order_no": 4,
+          "questions": []
+        }
+      ]
+    }
+  ]
+}

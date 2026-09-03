@@ -391,6 +391,7 @@ from deeptutor.api.routers import (
     space_cli_apps,
     space_mcp,
     subagents,
+    subject_pack,
     system,
     unified_ws,
     voice,
@@ -470,6 +471,12 @@ app.include_router(
     sessions.router, prefix="/api/v1/sessions", tags=["sessions"], dependencies=_auth
 )
 app.include_router(courses.router, prefix="/api/v1/courses", tags=["courses"], dependencies=_auth)
+app.include_router(
+    subject_pack.router,
+    prefix="/api/v1/subjects",
+    tags=["subjects"],
+    dependencies=_auth,
+)
 app.include_router(
     question_notebook.router,
     prefix="/api/v1/question-notebook",

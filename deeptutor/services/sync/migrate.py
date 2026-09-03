@@ -32,6 +32,7 @@ from typing import Any
 
 from deeptutor.services.session.mysql_store import get_mysql_pool
 from deeptutor.services.session.sqlite_store import SQLiteSessionStore
+from deeptutor.services.subject_pack.schema import SUBJECT_SCHEMA_SQL
 
 
 @dataclass
@@ -157,7 +158,7 @@ CREATE TABLE IF NOT EXISTS dt_mastery_path_leases (
   turn_id     VARCHAR(64) NOT NULL UNIQUE,
   acquired_at DOUBLE      NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-"""
+""" + SUBJECT_SCHEMA_SQL
 
 
 async def ensure_server_schema() -> None:

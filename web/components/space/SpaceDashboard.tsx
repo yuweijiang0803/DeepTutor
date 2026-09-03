@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { useCapabilityFilter } from "@/lib/capabilities-api";
 import {
   ArrowUpRight,
+  BookOpenCheck,
   ClipboardList,
   Ear,
   Github,
@@ -26,6 +27,7 @@ import { listNotebooks, listNotebookEntries } from "@/lib/notebook-api";
 import { listPersonas } from "@/lib/personas-api";
 import { listSkills } from "@/lib/skills-api";
 import { fetchAllProgress } from "@/lib/learning-api";
+import { listSubjects } from "@/lib/subjects-api";
 import CoursesShelf from "@/components/courses/CoursesShelf";
 
 /**
@@ -40,6 +42,7 @@ import CoursesShelf from "@/components/courses/CoursesShelf";
 type Lang = { zh: string; en: string };
 
 type DashKey =
+  | "subjects"
   | "chat_history"
   | "notebooks"
   | "question_bank"
@@ -86,6 +89,24 @@ interface DashboardGroup {
 }
 
 const GROUPS: DashboardGroup[] = [
+  {
+    label: { zh: "同步学习", en: "Synchronous Learning" },
+    items: [
+      {
+        key: "subjects",
+        href: "/space/subjects",
+        icon: BookOpenCheck,
+        title: { zh: "学科课程", en: "Subjects" },
+        blurb: {
+          zh: "教材对齐的学科课程：按知识点同步学习。",
+          en: "Textbook-aligned subjects — learn knowledge point by point.",
+        },
+        unit: { zh: "个学科", en: "subjects" },
+        tile: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
+        load: async () => (await listSubjects()).length,
+      },
+    ],
+  },
   {
     label: { zh: "对话与资料", en: "Conversations & Materials" },
     items: [
