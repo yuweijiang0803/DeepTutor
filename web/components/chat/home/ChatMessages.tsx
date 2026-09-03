@@ -42,6 +42,7 @@ import { apiFetch, apiUrl } from "@/lib/api";
 import { docIconFor } from "@/lib/doc-attachments";
 import { useVoiceAutoplay } from "@/hooks/useVoiceAutoplay";
 import { extractMathAnimatorResult } from "@/lib/math-animator-types";
+import OpenMAICWatchPlayer from "@/components/openmaic/OpenMAICWatchPlayer";
 import {
   extractQuizQuestions,
   extractQuizTurnId,
@@ -393,6 +394,20 @@ const AssistantMessage = memo(function AssistantMessage({
     return extractVisualizeResult(resultEvent.metadata);
   }, [msg.capability, resultEvent]);
 
+  // OpenMAIC 讲解播放：agent 调 generate_explanation 工具后，result 元数据
+  // 带 watch_url，渲染内嵌讲解播放器。
+  const openmaicResult = useMemo(() => {
+    if (!resultEvent) return null;
+    const meta = resultEvent.metadata as Record<string, unknown> | undefined;
+    const payload = meta?.generate_explanation as
+      | { watch_url?: string; classroom_id?: string; scene_count?: number }
+      | undefined;
+    const watchUrl = payload?.watch_url;
+    if (!watchUrl) return null;
+    // Narrowed: callers below may pass watch_url straight into the player.
+    return { watch_url: watchUrl, ...payload };
+  }, [resultEvent]);
+
   // Detect the ``ask_user`` terminator payload: when the assistant turn
   // ended via the ``ask_user`` tool, this is the question the user is
   // expected to answer next. Render option chips below the message.
@@ -418,6 +433,7 @@ const AssistantMessage = memo(function AssistantMessage({
     !outlinePreview &&
     !mathAnimatorResult &&
     !visualizeResult &&
+    !openmaicResult &&
     !(quizQuestions && quizQuestions.length > 0);
   const messageSegments = useMemo(
     () => (useInlineAskUserSegments ? extractMessageSegments(msg.events) : []),
@@ -515,6 +531,20 @@ const AssistantMessage = memo(function AssistantMessage({
         <MathAnimatorViewer result={mathAnimatorResult} />
       ) : visualizeResult ? (
         <VisualizationViewer result={visualizeResult} />
+      ) : openmaicResult ? (
+        <div className="mt-2 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)]">
+          <div className="flex items-center justify-between border-b border-[var(--border)] px-3 py-2">
+            <span className="text-[12px] font-semibold">AI 讲解</span>
+            {typeof openmaicResult.scene_count === "number" ? (
+              <span className="text-[11px] text-[var(--muted-foreground)]">
+                {openmaicResult.scene_count} 页
+              </span>
+            ) : null}
+          </div>
+          <div className="aspect-video w-full">
+            <OpenMAICWatchPlayer src={openmaicResult.watch_url} />
+          </div>
+        </div>
       ) : quizQuestions && quizQuestions.length > 0 ? (
         <>
           {/* The quiz preface (the "I researched X, now let me quiz you on Y"
