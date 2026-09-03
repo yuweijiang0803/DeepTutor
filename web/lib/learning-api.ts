@@ -293,6 +293,30 @@ export async function importFromBook(
   return res.json();
 }
 
+/**
+ * 以全局学科包（dt_subject）为内容，创建/刷新一条精通之路 path。
+ * `pathId` 通常等于 subject_id；modules/kps 保留学科包语义 id。
+ */
+export async function initFromSubject(pathId: string, subjectId: string) {
+  const res = await apiFetch(
+    apiUrl(`/api/v1/learning/progress/${encodeURIComponent(pathId)}/init-from-subject`),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ subject_id: subjectId }),
+    },
+  );
+  if (!res.ok) throw new Error(`Failed to init path from subject: ${res.status}`);
+  return res.json() as Promise<{
+    status: string;
+    book_id: string;
+    path_name: string;
+    module_count: number;
+    knowledge_point_count: number;
+    path_revision: number;
+  }>;
+}
+
 export async function generateModulesFromNotebook(
   bookId: string,
   notebookId: string,

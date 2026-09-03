@@ -163,6 +163,19 @@ class ImportFromBookRequest(BaseModel):
     chapters: list[ChapterImport]
 
 
+class ImportFromSubjectRequest(BaseModel):
+    """Create / refresh a mastery path from a global subject pack.
+
+    ``subject_id`` refers to the dt_subject row (e.g. ``math-rjb-7a``).  The
+    subject's textbook-aligned modules and knowledge points are mapped onto the
+    path with their stable semantic ids (``LearningModule.id = module id``,
+    ``KnowledgePoint.id = kp id``), so mastery/error data aggregates back to
+    the same global content node every learner references.
+    """
+
+    subject_id: str
+
+
 # ── Endpoints ────────────────────────────────────────────────────────────────
 
 
@@ -272,6 +285,77 @@ async def init_modules(book_id: str, body: InitModulesRequest):
     return {
         "status": "ok",
         "module_count": len(modules),
+        "path_revision": progress.version,
+    }
+
+
+def _learning_modules_from_subject(subject) -> list[LearningModule]:
+    """Map a subject-pack tree onto mastery LearningModules, ids preserved."""
+    _ALLOWED_KP_TYPES = {"memory", "concept", "procedure", "design"}
+    modules: list[LearningModule] = []
+    for module in subject.modules:
+        kps = []
+        for kp in module.knowledge_points:
+            kp_type = str(kp.kp_type or "").strip()
+            if kp_type not in _ALLOWED_KP_TYPES:
+                kp_type = "concept"
+            kps.append(
+                KnowledgePoint(
+                    id=kp.id,
+                    name=kp.name,
+                    type=KnowledgeType(kp_type),
+                    module_id=module.id,
+                )
+            )
+        modules.append(
+            LearningModule(
+                id=module.id,
+                name=module.name,
+                order=module.order_no,
+                pass_threshold=module.pass_threshold,
+                knowledge_points=kps,
+            )
+        )
+    return modules
+
+
+@router.post("/progress/{book_id}/init-from-subject")
+async def init_from_subject(book_id: str, body: ImportFromSubjectRequest):
+    """Create a mastery path whose content comes from a global subject pack.
+
+    ``book_id`` is the path id the learner opens in chat (normally equal to
+    ``subject_id``).  Modules/knowledge points keep the dt subject-pack ids so
+    mastery data aggregates onto the shared content tree.
+    """
+    _validate_book_id(book_id)
+
+    from deeptutor.services.subject_pack import SubjectNotFoundError, get_subject_service
+
+    try:
+        subject = get_subject_service().get_subject(body.subject_id)
+    except SubjectNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Subject not found") from exc
+
+    modules = _learning_modules_from_subject(subject)
+    _validate_runnable_modules(modules)
+    path_name = " ".join([subject.grade, subject.name, subject.textbook]).strip()
+
+    async with _exclusive_path_mutation(book_id):
+        service = get_learning_service()
+        progress = await asyncio.to_thread(
+            service.replace_modules_for_path,
+            book_id,
+            modules,
+            name=path_name,
+            event_type="path.built_from_subject",
+        )
+    return {
+        "status": "ok",
+        "book_id": book_id,
+        "subject_id": body.subject_id,
+        "path_name": path_name,
+        "module_count": len(modules),
+        "knowledge_point_count": sum(len(m.knowledge_points) for m in modules),
         "path_revision": progress.version,
     }
 

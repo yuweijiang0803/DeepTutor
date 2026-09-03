@@ -2,16 +2,19 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import {
+  ArrowUpRight,
   BookOpenCheck,
   CirclePlay,
   FlaskConical,
   Layers,
   Lightbulb,
   ListOrdered,
+  Loader2,
   Puzzle,
   RefreshCcw,
+  Rocket,
   type LucideIcon,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -22,6 +25,12 @@ import {
   type SubjectDetail,
   type SubjectKnowledgePoint,
 } from "@/lib/subjects-api";
+import {
+  fetchProgress,
+  initFromSubject,
+  type ProgressDetail,
+} from "@/lib/learning-api";
+import { newMasteryPathChatUrl } from "@/lib/chat-launch-intent";
 
 /** 知识点类型 → 小图标 + i18n key。 */
 const KP_META: Record<string, { icon: LucideIcon; label: string }> = {
@@ -79,23 +88,48 @@ function KnowledgePointCard({ kp }: { kp: SubjectKnowledgePoint }) {
  */
 export default function SubjectDetailSection() {
   const { t } = useTranslation();
+  const router = useRouter();
   const params = useParams<{ subjectId: string }>();
   const subjectId = String(params.subjectId || "");
   const [subject, setSubject] = useState<SubjectDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  /** null = 正在探测该学科是否已有精通之路 path。 */
+  const [pathExists, setPathExists] = useState<boolean | null>(null);
+  const [starting, setStarting] = useState(false);
 
   const load = useCallback(() => {
     if (!subjectId) return;
     setLoading(true);
     setError("");
-    getSubject(subjectId, { force: true })
+    setPathExists(null);
+    void getSubject(subjectId, { force: true })
       .then(setSubject)
       .catch(() => setError(t("subjects.loadError")))
       .finally(() => setLoading(false));
+    void fetchProgress(subjectId)
+      .then((progress: ProgressDetail) => {
+        setPathExists((progress.modules ?? []).length > 0);
+      })
+      .catch(() => setPathExists(false));
   }, [subjectId, t]);
 
   useEffect(load, [load]);
+
+  const startLearning = useCallback(async () => {
+    if (!subjectId || starting) return;
+    setStarting(true);
+    try {
+      if (pathExists === false) {
+        await initFromSubject(subjectId, subjectId);
+        setPathExists(true);
+      }
+      router.push(newMasteryPathChatUrl(subjectId));
+    } catch {
+      setError(t("subjects.startError"));
+      setStarting(false);
+    }
+  }, [subjectId, pathExists, starting, router, t]);
 
   if (loading) {
     return (
@@ -153,12 +187,33 @@ export default function SubjectDetailSection() {
         title={subject.name}
         description={`${meta} · ${subject.modules.length} ${t("subjects.chapters")} · ${totalKps} ${t("subjects.knowledgePoints")}`}
         action={
-          <Link
-            href="/space/subjects"
-            className="text-[13px] text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:underline"
-          >
-            {t("subjects.all")}
-          </Link>
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              href="/space/subjects"
+              className="text-[13px] text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:underline"
+            >
+              {t("subjects.all")}
+            </Link>
+            <button
+              type="button"
+              onClick={startLearning}
+              disabled={pathExists === null || starting}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--foreground)] px-3.5 py-2 text-[13px] font-medium text-[var(--background)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {starting ? (
+                <Loader2 size={14} strokeWidth={1.8} className="animate-spin" />
+              ) : pathExists ? (
+                <ArrowUpRight size={14} strokeWidth={1.8} />
+              ) : (
+                <Rocket size={14} strokeWidth={1.8} />
+              )}
+              {starting
+                ? t("subjects.preparing")
+                : pathExists
+                  ? t("subjects.continue")
+                  : t("subjects.start")}
+            </button>
+          </div>
         }
       />
       <div className="space-y-6">
