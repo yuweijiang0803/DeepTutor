@@ -19,6 +19,7 @@ from deeptutor.capabilities.subagent import SUBAGENT_TOOL_TYPES
 from deeptutor.core.tool_protocol import BaseTool, ToolDefinition, ToolParameter, ToolResult
 from deeptutor.knowledge.manifest import KB_FILES_DEFAULT_LIMIT, KB_FILES_MAX_LIMIT
 from deeptutor.tools.exec_tool import ExecTool
+from deeptutor.tools.generate_explanation import run_generate_explanation
 from deeptutor.tools.media_gen_tool import ImagegenTool, VideogenTool
 from deeptutor.tools.page_capture import ExtractPageQuestionsTool
 from deeptutor.tools.partner_memory import (
@@ -1198,6 +1199,66 @@ class QuestionBankTool(_PromptHintsMixin, BaseTool):
         )
 
 
+class GenerateExplanationTool(_PromptHintsMixin, BaseTool):
+    """Generate a short AI explanation course via OpenMAIC, playable in DeepTutor.
+
+    When the learner does not understand a knowledge point and plain chat
+    text is not enough, this tool asks OpenMAIC to produce a short narrated
+    explanation course (1-3 pages) and returns the watch URL the frontend
+    opens in the embedded player. Generation is async (minutes) — the agent
+    should explain what it is doing and follow up with the playable link.
+    """
+
+    def get_definition(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="generate_explanation",
+            description=(
+                "Generate a short AI-taught explanation course on a knowledge "
+                "point using OpenMAIC. Use it when the learner needs a "
+                "structured, narrated explanation (slides + voice) that plain "
+                "text cannot carry well — e.g. a confusing concept, a worked "
+                "example, or 'make me a mini lesson on X'. Takes a few minutes. "
+                "Returns a playable watch URL to open in the embedded player."
+            ),
+            parameters=[
+                ToolParameter(
+                    name="topic",
+                    type="string",
+                    description="The knowledge point / concept to explain.",
+                    required=True,
+                ),
+                ToolParameter(
+                    name="extra_context",
+                    type="string",
+                    description=(
+                        "Optional extra context: what the learner already "
+                        "knows, what they are stuck on, or the surrounding "
+                        "lesson. Helps OpenMAIC tailor the explanation."
+                    ),
+                    required=False,
+                ),
+            ],
+        )
+
+    async def execute(self, **kwargs: Any) -> ToolResult:
+        outcome = await run_generate_explanation(
+            topic=str(kwargs.get("topic") or ""),
+            extra_context=str(kwargs.get("extra_context") or ""),
+        )
+        if not outcome.ok:
+            return ToolResult(content=outcome.message, success=False)
+        return ToolResult(
+            content=outcome.message,
+            metadata={
+                "generate_explanation": {
+                    "watch_url": outcome.watch_url,
+                    "classroom_id": outcome.classroom_id,
+                    "scene_count": outcome.scene_count,
+                }
+            },
+        )
+
+
 class WriteNoteTool(_PromptHintsMixin, BaseTool):
     """Create OR edit a notebook record from the chat agent.
 
@@ -1788,6 +1849,7 @@ BUILTIN_TOOL_TYPES: tuple[type[BaseTool], ...] = (
     ListNotebookTool,
     WriteNoteTool,
     QuestionBankTool,
+    GenerateExplanationTool,
     GithubTool,
     AskUserTool,
     CronTool,
@@ -1880,6 +1942,7 @@ CONFIGURABLE_BUILTIN_TOOL_NAMES: tuple[str, ...] = (
     "list_notebook",
     "write_note",
     "question_bank",
+    "generate_explanation",
     "web_fetch",
     "github",
     "exec",

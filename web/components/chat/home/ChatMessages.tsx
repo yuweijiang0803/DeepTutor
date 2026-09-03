@@ -342,6 +342,7 @@ const AssistantMessage = memo(function AssistantMessage({
         },
   ) => void;
 }) {
+  const { t } = useTranslation();
   const events = useMemo(() => msg.events ?? [], [msg.events]);
   const resultEvent = useMemo(
     () => msg.events?.find((event) => event.type === "result") ?? null,
@@ -534,10 +535,12 @@ const AssistantMessage = memo(function AssistantMessage({
       ) : openmaicResult ? (
         <div className="mt-2 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)]">
           <div className="flex items-center justify-between border-b border-[var(--border)] px-3 py-2">
-            <span className="text-[12px] font-semibold">AI 讲解</span>
+            <span className="text-[12px] font-semibold">
+              {t("openmaic.aiLessonTitle")}
+            </span>
             {typeof openmaicResult.scene_count === "number" ? (
               <span className="text-[11px] text-[var(--muted-foreground)]">
-                {openmaicResult.scene_count} 页
+                {t("openmaic.scenePages", { count: openmaicResult.scene_count })}
               </span>
             ) : null}
           </div>

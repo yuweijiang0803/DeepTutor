@@ -12,6 +12,7 @@ import {
   Github,
   GraduationCap,
   History,
+  MonitorPlay,
   NotebookPen,
   Plug,
   Terminal,
@@ -28,6 +29,7 @@ import { listPersonas } from "@/lib/personas-api";
 import { listSkills } from "@/lib/skills-api";
 import { fetchAllProgress } from "@/lib/learning-api";
 import { listSubjects } from "@/lib/subjects-api";
+import { listOpenMAICCourses } from "@/lib/openmaic-courses-api";
 import CoursesShelf from "@/components/courses/CoursesShelf";
 
 /**
@@ -43,6 +45,7 @@ type Lang = { zh: string; en: string };
 
 type DashKey =
   | "subjects"
+  | "openmaic"
   | "chat_history"
   | "notebooks"
   | "question_bank"
@@ -104,6 +107,19 @@ const GROUPS: DashboardGroup[] = [
         unit: { zh: "个学科", en: "subjects" },
         tile: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
         load: async () => (await listSubjects()).length,
+      },
+      {
+        key: "openmaic",
+        href: "/space/openmaic",
+        icon: MonitorPlay,
+        title: { zh: "AI 课件", en: "AI Lessons" },
+        blurb: {
+          zh: "OpenMAIC 公开课：AI 生成的互动讲解，点开即学。",
+          en: "OpenMAIC courses — AI-made interactive lessons, play anytime.",
+        },
+        unit: { zh: "门公开课", en: "lessons" },
+        tile: "bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-400",
+        load: async () => (await listOpenMAICCourses()).length,
       },
     ],
   },

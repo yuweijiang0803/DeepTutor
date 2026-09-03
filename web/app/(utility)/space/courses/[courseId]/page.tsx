@@ -17,6 +17,7 @@ import {
 import { useTranslation } from "react-i18next";
 import CourseDialog from "@/components/courses/CourseDialog";
 import OrganizedSessionList from "@/components/courses/OrganizedSessionList";
+import OpenMAICWatchPlayer from "@/components/openmaic/OpenMAICWatchPlayer";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import {
   deleteCourse,
@@ -202,6 +203,19 @@ export default function CourseDetailPage() {
           </div>
         </div>
       </header>
+
+      {course.openmaic_url ? (
+        <div className="mt-5 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)]">
+          <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-2.5">
+            <h2 className="font-serif text-[15px] font-semibold">
+              {t("openmaic.aiLessonTitle")}
+            </h2>
+          </div>
+          <div className="aspect-video w-full">
+            <OpenMAICWatchPlayer src={course.openmaic_url} />
+          </div>
+        </div>
+      ) : null}
 
       <div className="mt-5 grid gap-3 sm:grid-cols-3">
         <Shortcut href="/notebook" icon={NotebookPen} label={t("Notebooks")} />

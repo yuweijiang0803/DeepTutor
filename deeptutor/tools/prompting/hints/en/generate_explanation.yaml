@@ -1,0 +1,6 @@
+short_description: "Generate a short structured AI-taught explanation course (1-3 narrated pages) via OpenMAIC, playable in the embedded player."
+when_to_use: "Use this tool when the learner explicitly asks for a generated / playable explanation — e.g. 'generate an explanation', 'make me a mini lesson', 'AI teacher, explain X', 'I don't get it, explain properly', 'give me a narrated explanation'. Do NOT fall back to plain text when the learner says 'generate' / 'make a lesson' / 'AI teacher'. Plain conversational answers are fine for quick clarifications, but any request to GENERATE a playable explanation must call this tool."
+input_format: "{\"topic\": \"the knowledge point to explain, e.g. 'what is absolute value'\", \"extra_context\": \"optional: what the learner already knows / where they are stuck / surrounding lesson\"}"
+guideline: "Tell the learner the explanation is being generated (takes a few minutes), then faithfully report the result. Once generation succeeds, surface the playable watch link in the embedded player. Never claim it was generated before the tool actually returned success."
+note: "Generation is asynchronous and usually takes 1-10 minutes. On failure or timeout, tell the learner honestly and suggest retrying later."
+phase: "expansion"

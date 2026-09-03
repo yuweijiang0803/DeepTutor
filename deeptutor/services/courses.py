@@ -38,6 +38,8 @@ class StudyCourse:
     color: str
     created_at: float
     updated_at: float
+    # OpenMAIC 讲解播放页地址（可选）。有值时课程详情页会内嵌讲解播放器。
+    openmaic_url: str = ""
 
     def to_dict(self) -> dict[str, object]:
         return asdict(self)
@@ -107,6 +109,7 @@ class CourseService:
                     color=self._clean_color(str(row.get("color") or ""), index),
                     created_at=created_at,
                     updated_at=float(row.get("updated_at") or created_at),
+                    openmaic_url=str(row.get("openmaic_url") or ""),
                 )
             )
         return courses
@@ -134,7 +137,9 @@ class CourseService:
                     return course
         raise CourseNotFoundError(target)
 
-    def create(self, *, name: str, description: str = "", color: str = "") -> StudyCourse:
+    def create(
+        self, *, name: str, description: str = "", color: str = "", openmaic_url: str = ""
+    ) -> StudyCourse:
         with self._lock:
             courses = self._load()
             clean_name = self._clean_name(name)
@@ -147,6 +152,7 @@ class CourseService:
                 color=self._clean_color(color, len(courses)),
                 created_at=now,
                 updated_at=now,
+                openmaic_url=str(openmaic_url or "").strip(),
             )
             courses.append(course)
             self._save(courses)
@@ -159,6 +165,7 @@ class CourseService:
         name: str | None = None,
         description: str | None = None,
         color: str | None = None,
+        openmaic_url: str | None = None,
     ) -> StudyCourse:
         target = str(course_id or "").strip()
         with self._lock:
@@ -174,6 +181,8 @@ class CourseService:
                 course.description = self._clean_description(description)
             if color is not None:
                 course.color = self._clean_color(color)
+            if openmaic_url is not None:
+                course.openmaic_url = str(openmaic_url or "").strip()
             course.updated_at = time.time()
             self._save(courses)
             return course

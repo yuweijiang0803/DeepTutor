@@ -8,6 +8,8 @@ export interface StudyCourse {
   color: string;
   created_at: number;
   updated_at: number;
+  /** OpenMAIC 讲解播放页地址（可选）。有值时课程详情页内嵌讲解播放器。 */
+  openmaic_url?: string;
 }
 
 export const DEFAULT_COURSE_COLORS = [

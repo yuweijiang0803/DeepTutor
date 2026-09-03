@@ -374,6 +374,7 @@ from deeptutor.api.routers import (
     mcp_settings,
     memory,
     notebook,
+    openmaic,
     outputs,
     partners,
     personas,
@@ -475,6 +476,12 @@ app.include_router(
     subject_pack.router,
     prefix="/api/v1/subjects",
     tags=["subjects"],
+    dependencies=_auth,
+)
+app.include_router(
+    openmaic.router,
+    prefix="/api/v1/openmaic",
+    tags=["openmaic"],
     dependencies=_auth,
 )
 app.include_router(

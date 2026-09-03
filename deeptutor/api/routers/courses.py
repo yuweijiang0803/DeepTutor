@@ -21,12 +21,14 @@ class CreateCourseRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=60)
     description: str = Field(default="", max_length=300)
     color: str = ""
+    openmaic_url: str = ""
 
 
 class UpdateCourseRequest(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=60)
     description: str | None = Field(default=None, max_length=300)
     color: str | None = None
+    openmaic_url: str | None = None
 
 
 @router.get("")

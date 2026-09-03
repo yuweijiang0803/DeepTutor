@@ -11,6 +11,7 @@
  */
 
 import { wsUrl } from "./api";
+import { buildOpenMAICPlaybackPrefix } from "./openmaic-playback";
 
 // ---- StreamEvent types (mirror Python StreamEventType) ----
 
@@ -254,6 +255,14 @@ export class UnifiedWSClient {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       console.error("WebSocket not connected");
       return;
+    }
+    // OpenMAIC 讲解播放上下文注入：学生提问时带上"正在看的页"，
+    // 让 agent 结合当前页内容精准答疑（无播放上下文时为空串，不影响）
+    if ((msg.type === "message" || msg.type === "start_turn") && msg.content) {
+      const prefix = buildOpenMAICPlaybackPrefix();
+      if (prefix) {
+        msg.content = `${prefix}\n${msg.content}`;
+      }
     }
     this.ws.send(JSON.stringify(msg));
   }
