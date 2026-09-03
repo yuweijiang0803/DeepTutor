@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { BookOpenCheck, Loader2, Play } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -15,8 +14,10 @@ import {
 function CourseCard({ course }: { course: OpenMAICCourse }) {
   const cover = course.cover;
   return (
-    <Link
-      href={`/space/openmaic/${course.id}`}
+    <a
+      href={course.watch_url}
+      target="_blank"
+      rel="noopener noreferrer"
       className="group flex flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)] transition-all duration-150 hover:-translate-y-0.5 hover:border-[var(--foreground)]/20 hover:shadow-[0_6px_20px_-12px_rgba(0,0,0,0.25)]"
     >
       {/* 封面：真实 cover 用轻量渲染器画出第一页；无 cover 时用占位 */}
@@ -39,7 +40,7 @@ function CourseCard({ course }: { course: OpenMAICCourse }) {
           {course.name}
         </p>
       </div>
-    </Link>
+    </a>
   );
 }
 
