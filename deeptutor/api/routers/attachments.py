@@ -37,6 +37,22 @@ router = APIRouter()
 _content_disposition = content_disposition
 
 
+def _admin_attachment_store() -> LocalDiskAttachmentStore:
+    """Attachment store rooted at the admin workspace (``data/user/...``).
+
+    Chat attachments written before per-user path scoping landed live in the
+    admin workspace (the deployment today is single-admin: the XiaoZhi shadow
+    user resolves to the admin scope). The notebook/web UI references those
+    files via their public URL, so serving must fall back to the admin root
+    even when the current requester's scope resolves elsewhere (e.g. the
+    anonymous guest scope used when manager-web loads the image).
+    """
+    from deeptutor.multi_user.paths import get_admin_path_service
+
+    root = get_admin_path_service().get_user_root() / "workspace" / "chat" / "attachments"
+    return LocalDiskAttachmentStore(root=root)
+
+
 @router.get("/{session_id}/{attachment_id}/{filename:path}")
 async def get_attachment(
     session_id: str,
@@ -62,6 +78,13 @@ async def get_attachment(
         attachment_id=attachment_id,
         filename=filename,
     )
+    # Files under the admin workspace keep working for any requester scope.
+    if target is None:
+        target = _admin_attachment_store().resolve_path(
+            session_id=session_id,
+            attachment_id=attachment_id,
+            filename=filename,
+        )
     if target is None:
         raise HTTPException(status_code=404, detail="Attachment not found")
 

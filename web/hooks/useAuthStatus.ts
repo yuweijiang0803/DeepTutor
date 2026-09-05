@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { fetchAuthStatus } from "@/lib/auth";
+import { fetchAuthStatus, ssoAutoLogin } from "@/lib/auth";
 
 export interface AuthStatusState {
   /** Whether auth is enabled on the backend. */
@@ -39,7 +39,10 @@ let inflight: Promise<AuthStatusState> | null = null;
 
 function loadAuthStatus(): Promise<AuthStatusState> {
   if (!inflight) {
-    inflight = fetchAuthStatus()
+    // 先尝试 manager 统一登录（mix-token → DeepTutor 会话），再取真实状态，
+    // 保证任何用到该 hook 的页面在读到身份前已完成自动登录。
+    inflight = ssoAutoLogin()
+      .then((sso) => sso ?? fetchAuthStatus())
       .then((status) => ({
         enabled: Boolean(status?.enabled),
         authenticated: Boolean(status?.authenticated),

@@ -1,0 +1,137 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e4]:
+      - generic [ref=e5]:
+        - link [ref=e6] [cursor=pointer]:
+          - /url: /
+          - img "DeepTutor" [ref=e7]
+          - img "DeepTutor" [ref=e8]
+        - button "收起侧边栏" [ref=e244] [cursor=pointer]
+      - navigation [ref=e13]:
+        - generic [ref=e14]:
+          - generic "主页 — Locked — contact your administrator to get access." [ref=e246]: 主页
+          - generic "伙伴 — Locked — contact your administrator to get access." [ref=e255]: 伙伴
+          - link "我的智能体" [ref=e262] [cursor=pointer]:
+            - /url: /agents
+          - generic "智能写作 — Locked — contact your administrator to get access." [ref=e264]: 智能写作
+          - generic "书籍 — Locked — contact your administrator to get access." [ref=e272]: 书籍
+          - link "学习空间" [ref=e279] [cursor=pointer]:
+            - /url: /space
+      - generic [ref=e44]:
+        - button "折叠最近会话" [expanded] [ref=e280] [cursor=pointer]:
+          - generic [ref=e46]: 最近
+        - generic [ref=e49]: 暂无对话
+      - generic [ref=e51]:
+        - link "记忆" [ref=e282] [cursor=pointer]:
+          - /url: /memory
+        - link "知识中心" [ref=e283] [cursor=pointer]:
+          - /url: /knowledge
+        - link "设置" [ref=e284] [cursor=pointer]:
+          - /url: /settings
+        - link "登录" [ref=e285] [cursor=pointer]:
+          - /url: /login?redirect=%2Fspace
+        - generic [ref=e71]:
+          - link "v1.6.0" [ref=e72] [cursor=pointer]:
+            - /url: https://github.com/HKUDS/DeepTutor/releases
+          - link "文档" [ref=e290] [cursor=pointer]:
+            - /url: https://deeptutor.info/
+          - link "GitHub" [ref=e77] [cursor=pointer]:
+            - /url: https://github.com/HKUDS/DeepTutor
+    - main [ref=e81]:
+      - generic [ref=e85]:
+        - generic [ref=e86]:
+          - heading "学习空间" [level=1] [ref=e291]
+          - paragraph [ref=e88]: 你的对话、智能体、笔记与练习，集中在一处 —— 从这里进入。
+        - region [ref=e292]:
+          - generic [ref=e90]:
+            - generic [ref=e91]:
+              - heading "我的课程" [level=2] [ref=e293]
+              - paragraph [ref=e93]: 按课程归拢聊天，同时保持各自上下文独立。
+            - button "新建课程" [ref=e294] [cursor=pointer]
+          - button "创建第一门课程 可以先从“操作系统”或“网络安全”开始。" [ref=e295] [cursor=pointer]:
+            - generic [ref=e299]:
+              - generic [ref=e300]: 创建第一门课程
+              - generic [ref=e301]: 可以先从“操作系统”或“网络安全”开始。
+        - generic [ref=e100]:
+          - generic [ref=e101]:
+            - heading "同步学习" [level=2] [ref=e304]
+            - link "学科课程 1 个学科 教材对齐的学科课程：按知识点同步学习。" [ref=e305] [cursor=pointer]:
+              - /url: /space/subjects
+              - generic [ref=e110]:
+                - heading "学科课程" [level=3] [ref=e306]
+                - generic [ref=e112]:
+                  - generic [ref=e113]: "1"
+                  - generic [ref=e307]: 个学科
+              - paragraph [ref=e117]: 教材对齐的学科课程：按知识点同步学习。
+          - generic [ref=e118]:
+            - heading "对话与资料" [level=2] [ref=e308]
+            - generic [ref=e120]:
+              - link "聊天历史 0 段对话 回顾并继续此前的对话。" [ref=e309] [cursor=pointer]:
+                - /url: /space/chat-history
+                - generic [ref=e128]:
+                  - heading "聊天历史" [level=3] [ref=e310]
+                  - generic [ref=e130]:
+                    - generic [ref=e131]: "0"
+                    - generic [ref=e311]: 段对话
+                - paragraph [ref=e135]: 回顾并继续此前的对话。
+              - link "笔记本 0 个笔记本 整理来自对话、研究、智能写作等的产出。" [ref=e312] [cursor=pointer]:
+                - /url: /notebook
+                - generic [ref=e142]:
+                  - heading "笔记本" [level=3] [ref=e313]
+                  - generic [ref=e144]:
+                    - generic [ref=e145]: "0"
+                    - generic [ref=e314]: 个笔记本
+                - paragraph [ref=e149]: 整理来自对话、研究、智能写作等的产出。
+              - link "题库 0 道题 跨会话回顾和整理测验题目。" [ref=e315] [cursor=pointer]:
+                - /url: /space/questions
+                - generic [ref=e156]:
+                  - heading "题库" [level=3] [ref=e316]
+                  - generic [ref=e158]:
+                    - generic [ref=e159]: "0"
+                    - generic [ref=e317]: 道题
+                - paragraph [ref=e163]: 跨会话回顾和整理测验题目。
+          - generic [ref=e164]:
+            - heading "个性化" [level=2] [ref=e318]
+            - generic [ref=e166]:
+              - link "精通之路 0 条路径 掌握式学习：硬门槛与间隔复习。" [ref=e319] [cursor=pointer]:
+                - /url: /space/learning
+                - generic [ref=e173]:
+                  - heading "精通之路" [level=3] [ref=e320]
+                  - generic [ref=e175]:
+                    - generic [ref=e176]: "0"
+                    - generic [ref=e321]: 条路径
+                - paragraph [ref=e180]: 掌握式学习：硬门槛与间隔复习。
+              - link "Personas 3 个预设 可在每轮对话中套用的行为预设。" [ref=e322] [cursor=pointer]:
+                - /url: /space/personas
+                - generic [ref=e187]:
+                  - heading "Personas" [level=3] [ref=e188]
+                  - generic [ref=e189]:
+                    - generic [ref=e190]: "3"
+                    - generic [ref=e323]: 个预设
+                - paragraph [ref=e194]: 可在每轮对话中套用的行为预设。
+              - link "技能 5 个技能 模型按需读取的能力手册。" [ref=e324] [cursor=pointer]:
+                - /url: /space/skills
+                - generic [ref=e201]:
+                  - heading "技能" [level=3] [ref=e325]
+                  - generic [ref=e203]:
+                    - generic [ref=e204]: "5"
+                    - generic [ref=e326]: 个技能
+                - paragraph [ref=e208]: 模型按需读取的能力手册。
+              - link "MCP 服务 0 个服务 连接托管 MCP 服务，把它们的工具带进对话。" [ref=e327] [cursor=pointer]:
+                - /url: /space/mcp
+                - generic [ref=e214]:
+                  - heading "MCP 服务" [level=3] [ref=e328]
+                  - generic [ref=e216]:
+                    - generic [ref=e217]: "0"
+                    - generic [ref=e329]: 个服务
+                - paragraph [ref=e221]: 连接托管 MCP 服务，把它们的工具带进对话。
+              - link "CLI 应用 0 个应用 来自 CLI-Anything 目录的命令行工具，启用后对话可直接调用。" [ref=e330] [cursor=pointer]:
+                - /url: /space/cli-apps
+                - generic [ref=e227]:
+                  - heading "CLI 应用" [level=3] [ref=e331]
+                  - generic [ref=e229]:
+                    - generic [ref=e230]: "0"
+                    - generic [ref=e332]: 个应用
+                - paragraph [ref=e234]: 来自 CLI-Anything 目录的命令行工具，启用后对话可直接调用。
+  - button "Open Next.js Dev Tools" [ref=e240] [cursor=pointer]
+  - alert [ref=e333]

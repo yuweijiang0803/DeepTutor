@@ -39,6 +39,28 @@ export async function fetchAuthStatus(): Promise<AuthStatus | null> {
 }
 
 /**
+ * 每页加载自动登录（与 OpenMAIC 的 SsoBootstrap 对齐）：后端读取 URL
+ * ``?token=`` 或同源 ``mix-token``（manager 统一登录 cookie）校验后直接换成
+ * DeepTutor 会话；无有效 token 时返回当前（可能为未登录）状态，绝不 401 跳转。
+ */
+export async function ssoAutoLogin(token?: string): Promise<AuthStatus | null> {
+  try {
+    const path = token
+      ? `${apiUrl("/api/v1/auth/sso")}?token=${encodeURIComponent(token)}`
+      : apiUrl("/api/v1/auth/sso");
+    const res = await apiFetch(path, {
+      skipAuthRedirect: true,
+    });
+    if (!res.ok) return null;
+    const status: AuthStatus = await res.json();
+    setRuntimeAuthEnabled(Boolean(status.enabled));
+    return status;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * POST credentials to the backend. Returns true on success.
  */
 export async function login(

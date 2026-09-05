@@ -88,6 +88,62 @@ def _cookie_attrs() -> dict:
     }
 
 
+# 与 manager（小智）共享的统一登录 cookie 作用域：mix-token 下在 .hourofai.cn
+# 顶级域，manager-web / DeepTutor / OpenMAIC 通用（可用 XIAOZHI_COOKIE_DOMAIN 覆盖）。
+_SHARED_COOKIE_DOMAIN = (
+    os.environ.get("XIAOZHI_COOKIE_DOMAIN", "").strip() or "hourofai.cn"
+)
+
+# DT 表单用 manager 账号登录时，代理到 manager 的登录接口建立中心会话。
+# 部署时可用 MANAGER_LOGIN_URL 覆盖（如 https://manager.hourofai.cn/api/login）。
+MANAGER_LOGIN_URL = (
+    os.environ.get("MANAGER_LOGIN_URL", "").strip()
+    or "http://manager:8084/api/login"
+)
+
+
+def _set_shared_login_cookie(response: Response, token: str) -> None:
+    """种下与 manager 一致的共享登录 cookie ``mix-token``。
+
+    httpOnly:false 与 manager 后端一致（manager-web 的 JS 守卫/登出依赖可读可清），
+    域名取共享顶级域；这样 DT 用 manager 账号登录后，manager/OpenMAIC 也处于登录态。
+    """
+    response.set_cookie(
+        key="mix-token",
+        value=token,
+        max_age=24 * 3600,
+        path="/",
+        domain=_SHARED_COOKIE_DOMAIN,
+        httponly=False,
+        samesite="lax",
+        secure=_SECURE,
+    )
+
+
+def _expire_cookie(response: Response, name: str, domain: str = "") -> None:
+    """Send an expiring Set-Cookie (path=/). ``domain`` = "" keeps it host-only."""
+    response.set_cookie(
+        key=name,
+        value="",
+        max_age=0,
+        expires=0,
+        path="/",
+        domain=domain or None,
+        httponly=True,
+        samesite="lax",
+        secure=_SECURE,
+    )
+
+
+def _clear_shared_login_cookies(response: Response) -> None:
+    """平台级统一登出：清掉共享的 manager ``mix-token``（host-only + 顶级域各变体，
+    覆盖不同下发方式/本地开发），并顺带清理遗留的 dt_logged_out 标记。"""
+    _expire_cookie(response, "mix-token", "")
+    _expire_cookie(response, "mix-token", _SHARED_COOKIE_DOMAIN)
+    _expire_cookie(response, "mix-token", f".{_SHARED_COOKIE_DOMAIN}")
+    _expire_cookie(response, "dt_logged_out", "")
+
+
 # ---------------------------------------------------------------------------
 # Schemas
 # ---------------------------------------------------------------------------
@@ -443,12 +499,17 @@ async def receive_codex_oauth_callback(
     )
 
 
-@router.get("/status", response_model=AuthStatusResponse)
-async def auth_status(
-    authorization: str | None = Header(default=None, alias="Authorization"),
-    dt_token: str | None = Cookie(default=None, alias=_COOKIE_NAME),
+async def _resolve_sso_status(
+    request: Request,
+    response: Response,
+    authorization: str | None,
+    dt_cookie: str | None,
 ) -> AuthStatusResponse:
-    """Return whether auth is enabled and whether the current request is authenticated."""
+    """解析当前登录态；未带有效 ``dt_token`` 但带 manager ``mix-token`` 时自动交换。
+
+    /status 与 /sso 共用同一实现，确保任何直连 /status 的首次加载（如直接
+    fetchAuthStatus 的组件）也能在同一个请求里完成 SSO 交换，不再需要第二次刷新。
+    """
     if not AUTH_ENABLED:
         return AuthStatusResponse(
             enabled=False,
@@ -459,52 +520,104 @@ async def auth_status(
             is_admin=True,
         )
 
-    # LOCAL_MODE: 本地模式（未启用同步）免登录浏览。仍可主动登录（用于
-    # 开启同步）——此时返回真实账号信息；否则视为未登录的访客。
     from deeptutor.services.session.mysql_store import mysql_configured
 
-    if not mysql_configured():
-        token = _extract_token(authorization, dt_token)
-        payload = decode_token(token) if token else None
-        if payload is None:
-            return AuthStatusResponse(
-                enabled=False,
-                authenticated=False,
-                user_id=None,
-                username=None,
-                role=None,
-                is_admin=False,
-            )
-        info = get_user_info(payload.username)
+    # LOCAL_MODE（未启用 MySQL 同步）也允许主动登录/SSO：返回真实账号信息；
+    # enabled 仍按既有口径上报，避免改变前端对本地模式的判断。
+    enabled = bool(mysql_configured())
+
+    def build(payload_: TokenPayload | None) -> AuthStatusResponse:
+        if payload_ is None:
+            return AuthStatusResponse(enabled=enabled, authenticated=False)
+        info = get_user_info(payload_.username) or {}
         return AuthStatusResponse(
-            enabled=False,
+            enabled=enabled,
             authenticated=True,
-            user_id=payload.user_id,
-            username=payload.username,
-            role=payload.role,
-            is_admin=payload.role == "admin",
-            avatar=str((info or {}).get("avatar") or ""),
-            nickname=str((info or {}).get("nickname") or ""),
+            user_id=payload_.user_id,
+            username=payload_.username,
+            role=payload_.role,
+            is_admin=payload_.role == "admin",
+            avatar=str(info.get("avatar") or ""),
+            nickname=str(info.get("nickname") or ""),
         )
 
-    token = _extract_token(authorization, dt_token)
+    token = _extract_token(authorization, dt_cookie)
     payload = decode_token(token) if token else None
-    avatar = ""
-    nickname = ""
+
+    # 无有效 dt 会话：尝试用 manager 身份自动登录（URL ?token= 优先，其次
+    # 同源 mix-token cookie），同一请求内完成交换并写入 dt_token。
+    manager_token = (
+        request.query_params.get("token")
+        or request.cookies.get("mix-token")
+        or ""
+    ).strip()
+    decoded = _decode_xiaozhi_token(manager_token)
+
+    if payload is not None and payload.username.startswith("xz_"):
+        # SSO 影子会话与 manager 中心会话绑定：中心 mix-token 缺失或不是同一账号
+        # 即视为登出（统一登出：任一平台登出清 mix-token 后，DT 下次校验同步退出）。
+        # DT 表单用 manager 账号登录会先建中心会话再建影子会话，因此这里的判定
+        # 不会误杀刚完成的登录。
+        if decoded is None:
+            response.delete_cookie(**_cookie_attrs())
+            logger.info("SSO shadow session cleared: no valid manager session")
+            return build(None)
+        if str(decoded[0]) != payload.username[len("xz_"):]:
+            # 换了一个 manager 账号：清掉旧 dt 会话，下面重新交换到新账号。
+            response.delete_cookie(**_cookie_attrs())
+            payload = None
+
     if payload is not None:
-        info = get_user_info(payload.username)
-        if info:
-            avatar = str(info.get("avatar") or "")
-            nickname = str(info.get("nickname") or "")
-    return AuthStatusResponse(
-        enabled=True,
-        authenticated=payload is not None,
-        user_id=payload.user_id if payload else None,
-        username=payload.username if payload else None,
-        role=payload.role if payload else None,
-        is_admin=payload.role == "admin" if payload else False,
-        avatar=avatar,
-        nickname=nickname,
+        return build(payload)
+
+    if decoded is not None:
+        xz_user_id, manager_role = decoded
+        try:
+            result = await _complete_xz_login(
+                xz_user_id, response, manager_role=manager_role
+            )
+            logger.info(f"auto-SSO xz_user={xz_user_id!r}")
+            return build(
+                TokenPayload(
+                    username=result["username"],
+                    role=result["role"],
+                    user_id=result["user_id"],
+                )
+            )
+        except Exception:
+            # 交换失败（如账号创建异常）静默降级为未登录，不阻塞页面。
+            logger.warning(
+                "auto-SSO exchange failed for xz_user=%r", xz_user_id, exc_info=True
+            )
+    return build(None)
+
+
+@router.get("/status", response_model=AuthStatusResponse)
+async def auth_status(
+    request: Request,
+    response: Response,
+    authorization: str | None = Header(default=None, alias="Authorization"),
+    dt_token: str | None = Cookie(default=None, alias=_COOKIE_NAME),
+) -> AuthStatusResponse:
+    """Return whether auth is enabled and whether the current request is authenticated.
+
+    未登录但浏览器带 manager ``mix-token`` 时，会在该请求内自动完成 SSO 交换
+    （与 /sso 相同），因此首次加载即可返回登录态，无需二次刷新。
+    """
+    return await _resolve_sso_status(request, response, authorization, dt_token)
+
+
+@router.get("/sso", response_model=AuthStatusResponse)
+async def sso_bootstrap(request: Request, response: Response) -> AuthStatusResponse:
+    """每页加载自动登录（与 OpenMAIC 的 SsoBootstrap 对齐）。
+
+    1. 已有有效 ``dt_token`` → 直接返回当前登录态；
+    2. 否则若浏览器带 manager 的 ``mix-token``（cookie 或 ?token=）→ 自动交换成
+       DeepTutor 会话并写入 ``dt_token``；
+    3. 都不满足 → 未登录（访客浏览，发消息等写操作再要求登录）。
+    """
+    return await _resolve_sso_status(
+        request, response, None, request.cookies.get(_COOKIE_NAME)
     )
 
 
@@ -548,15 +661,38 @@ async def login(body: LoginRequest, response: Response) -> dict:
             "is_admin": result.role == "admin",
         }
 
-    # Fall back to XiaoZhi accounts (``mixly.user``, md5(password+salt)) so the
-    # login form accepts XiaoZhi credentials directly — the unified account.
-    xz_user_id = await _xiaozhi_verify_credentials(body.username, body.password)
-    if not xz_user_id:
+    # manager（小智）账号：代理到 manager 登录接口建立「中心会话」，保证全平台
+    # 统一——成功后浏览器同时种上共享 mix-token（manager/OpenMAIC 跟着登录）与
+    # DT 会话（xz_ 影子账号），登出任意一处即全平台登出。
+    import httpx
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(
+                MANAGER_LOGIN_URL,
+                json={"username": body.username, "password": body.password},
+            )
+            data = resp.json() if resp.content else {}
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="manager 登录服务暂不可用，请稍后再试",
+        )
+    if resp.status_code != 200 or not data.get("success") or not data.get("access_token"):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
+            detail=str(data.get("message") or "账号或密码错误"),
         )
-    return await _complete_xz_login(xz_user_id, response)
+    access_token = str(data["access_token"])
+    decoded = _decode_xiaozhi_token(access_token)
+    if decoded is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="账号或密码错误",
+        )
+    xz_user_id, manager_role = decoded
+    _set_shared_login_cookie(response, access_token)
+    return await _complete_xz_login(xz_user_id, response, manager_role=manager_role)
 
 
 # ---------------------------------------------------------------------------
@@ -672,23 +808,49 @@ async def _xiaozhi_verify_credentials(username: str, password: str) -> str:
         return ""
 
 
-async def _complete_xz_login(xz_user_id: str, response: Response) -> dict:
+async def _complete_xz_login(
+    xz_user_id: str,
+    response: Response,
+    *,
+    manager_role: str = "",
+) -> dict:
     """Create/refresh the ``xz_<id>`` shadow user and sign the DeepTutor token.
 
     Shared by the XiaoZhi SSO endpoint and the login form's XiaoZhi-account
     branch. Keeps any existing role (an admin promoted in DeepTutor must not be
     demoted by a re-login) and syncs the display nickname from XiaoZhi.
+
+    角色映射：manager ``admin`` → DeepTutor ``admin``，其余角色 → ``user``；
+    已在 DeepTutor 手动提升为 admin 的影子账号不降级。SSO 不依赖 MySQL：
+    昵称/映射回填仅在 mysql 可用时尽力而为，失败不影响登录。
     """
     dt_username = f"xz_{xz_user_id}"
-    nickname = await _find_xz_nickname(xz_user_id)
 
     existing = get_user_info(dt_username) or {}
-    effective_role = str(existing.get("role") or "user")
+    existing_role = str(existing.get("role") or "user")
+    if existing_role == "admin" or (manager_role == "admin" and existing_role != "admin"):
+        effective_role = "admin"
+    else:
+        effective_role = "user"
+
+    nickname = ""
+    from deeptutor.services.session.mysql_store import mysql_configured
+
+    if mysql_configured():
+        try:
+            nickname = await _find_xz_nickname(xz_user_id)
+        except Exception:
+            nickname = ""
+
     # The random password is irrelevant — XiaoZhi-account users never use it.
     add_user(dt_username, secrets.token_urlsafe(24), role=effective_role, nickname=nickname)
     dt_user_id = _shadow_user_id(dt_username) or str(existing.get("id") or "")
-    if dt_user_id:
-        await _set_dt_user_id(xz_user_id, dt_user_id)
+    if dt_user_id and mysql_configured():
+        try:
+            await _set_dt_user_id(xz_user_id, dt_user_id)
+        except Exception:
+            # 回填 mixly.user 是纯加分项；失败不阻塞 SSO。
+            pass
 
     token = create_token(dt_username, effective_role, dt_user_id)
     response.set_cookie(value=token, max_age=_COOKIE_MAX_AGE, **_cookie_attrs())
@@ -712,77 +874,64 @@ def _shadow_user_id(username: str) -> str:
         return ""
 
 
+def _decode_xiaozhi_token(token: str) -> tuple[str, str] | None:
+    """Verify a manager ``mix-token`` (HS256 共享密钥). Returns ``(xz_user_id,
+    manager_role)`` on success, else ``None``."""
+    secret = _xiaozhi_jwt_secret()
+    if not token or not secret:
+        return None
+    try:
+        from jose import jwt
+
+        payload = jwt.decode(token, secret, algorithms=["HS256"])
+    except Exception:
+        return None
+    if payload.get("v") != 1:
+        return None
+    ident = payload.get("i") or []
+    if not ident:
+        return None
+    xz_user_id = str(ident[0])
+    # i = [user_id, role_id, role, clase, school]（与 OpenMAIC verifyManagerToken 一致）
+    manager_role = str(ident[2]) if len(ident) >= 3 else ""
+    return xz_user_id, manager_role
+
+
 @router.post("/xiaozhi-login")
 async def xiaozhi_login(body: XiaoZhiLoginRequest, response: Response) -> dict:
     """Exchange a XiaoZhi (manager-web) ``mix-token`` for a DeepTutor session.
 
-    1. Verifies the token with the shared JWT secret.
-    2. Maps ``xz_user_id`` → ``mixly.user.dt_user_id``.
-    3. On first login, auto-creates a DeepTutor shadow user
-       (username ``xz_<xz_user_id>``) and back-fills the column.
+    1. Verifies the token with the shared JWT secret（与 OpenMAIC 同机制）。
+    2. Maps ``xz_user_id`` → DeepTutor shadow user（username ``xz_<xz_user_id>``，
+       本地 users.json，不依赖 MySQL）。
+    3. On first login, auto-creates the shadow user and back-fills
+       ``mixly.user.dt_user_id`` when MySQL is available（尽力而为）。
     4. Signs a DeepTutor token and sets it as the ``dt_token`` cookie.
     """
-    from deeptutor.services.session.mysql_store import mysql_configured
-
-    if not mysql_configured():
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="MySQL session store is required for XiaoZhi SSO",
-        )
-    secret = _xiaozhi_jwt_secret()
-    if not secret:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="XiaoZhi SSO not configured (missing jwt_secret)",
-        )
-    try:
-        from jose import jwt
-
-        payload = jwt.decode(body.token, secret, algorithms=["HS256"])
-    except Exception:
+    decoded = _decode_xiaozhi_token(body.token)
+    if decoded is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid XiaoZhi token",
         )
-    if payload.get("v") != 1:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Unsupported XiaoZhi token version",
-        )
-    ident = payload.get("i") or []
-    if not ident:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing XiaoZhi user identity",
-        )
-    xz_user_id = str(ident[0])
+    xz_user_id, manager_role = decoded
     logger.info(f"SSO xz_user={xz_user_id!r}")
-    return await _complete_xz_login(xz_user_id, response)
+    return await _complete_xz_login(xz_user_id, response, manager_role=manager_role)
 
 
 @router.post("/logout")
 async def logout(response: Response) -> dict:
-    """Clear the JWT cookie.
+    """平台级统一登出：清掉共享的 manager ``mix-token``（多个 domain 变体）和
+    DeepTutor 自己的 ``dt_token``。
 
-    Deletion attributes mirror ``login`` structurally via ``_cookie_attrs()``
-    (see the rationale there and #623).
+    与 OpenMAIC / manager-web 一致——任一平台登出即整组账号体系登出：新页面
+    读不到 mix-token 就不会再自动登录回来。不再设置 ``dt_logged_out`` 抑制标记
+    （那会阻止 manager 重新登录后的自动 SSO）。
 
-    Also sets a ``dt_logged_out`` marker (non-HttpOnly so the login page can
-    read it) that suppresses automatic XiaoZhi SSO on the next visit — without
-    it, the shared ``mix-token`` cookie would silently log the user back in
-    right after they signed out. The marker is cleared when the user signs in
-    again or explicitly clicks the XiaoZhi sign-in button.
+    ``dt_token`` 的删除属性镜像写入属性（见 ``_cookie_attrs`` 说明 #623）。
     """
     response.delete_cookie(**_cookie_attrs())
-    response.set_cookie(
-        "dt_logged_out",
-        "1",
-        max_age=30 * 24 * 3600,
-        # Non-HttpOnly: the login page reads it via document.cookie.
-        httponly=False,
-        samesite=_SAMESITE,
-        secure=_SECURE,
-    )
+    _clear_shared_login_cookies(response)
     return {"ok": True}
 
 
